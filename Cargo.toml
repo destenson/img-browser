@@ -1,0 +1,40 @@
+[workspace]
+resolver = "2"
+
+members = [
+  ".", # "vendor/emulsion",
+]
+
+workspace.exclude = ["vendor/*"]
+
+[profile.dev.package."*"]
+opt-level = 1
+[profile.dev.build-override]
+opt-level = 1
+[profile.release]
+lto = "thin"
+
+[package]
+edition = "2021"
+name = "img-browser"
+version = "0.1.0"
+
+[features]
+avif = ["image/avif"]
+avif-native = ["image/avif-native"]
+bmp = ["image/bmp"]
+# default = []
+default = ["jpeg", "png", "webp"]
+gif = ["image/gif"]
+hdr = ["image/hdr"]
+ico = ["image/ico"]
+jpeg = ["image/jpeg"]
+png = ["image/png"]
+tiff = ["image/tiff"]
+webp = ["image/webp"]
+
+[dependencies]
+image = "0.25.5"
+opencv = "0.94"
+# dav1d = { version = "0.1.0", features = ["decode"] }
+# emulsion = { path = "vendor/emulsion" }
