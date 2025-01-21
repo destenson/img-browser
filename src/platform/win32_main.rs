@@ -87,6 +87,14 @@ pub fn main() -> Result<()> {
     // }
     
     // panic!();
+    // let print_msg = |str_msg: &str| {
+    //     let msg = match str_msg {
+    //         "" => format!("0x{:04x} {}", msg, msg),
+    //         m => format!("{}", m),
+    //     };
+    //     println!("[{:x?}] {}, {}, {}", hwnd.0, msg, wParam.0, lParam.0);
+    //     log::trace!("[{:x?}] {}, {}, {}", hwnd.0, msg, wParam.0, lParam.0);
+    // };
 
     // let ctr_base = 51;
     let ctr_base = 16;
@@ -671,16 +679,63 @@ unsafe extern "system" fn window_proc(
     wParam: WPARAM,
     lParam: LPARAM,
 ) -> LRESULT {
+    let print_msg = |str_msg: &str| {
+        let msg = match str_msg {
+            "" => format!("0x{:04x} {}", msg, msg),
+            m => format!("{}", m),
+        };
+        println!("[{:x?}] {}, {}, {}", hwnd.0, msg, wParam.0, lParam.0);
+        log::trace!("[{:x?}] {}, {}, {}", hwnd.0, msg, wParam.0, lParam.0);
+    };
     // log::info!("Message {:?} received", msg);
     // println!("Message {:?} received", msg);
     match msg {
         WM_CLOSE => {
-            println!("WM_CLOSE received");
+            print_msg("WM_CLOSE");
+            // println!("WM_CLOSE received");
             DestroyWindow(hwnd).expect("DestroyWindow failed");
             return LRESULT(0);
         }
-        WM_ACTIVATE => println!("WM_ACTIVATE"),
-        WM_ACTIVATEAPP => println!("WM_ACTIVATEAPP"),
+        WM_ACTIVATE => {
+            print_msg("WM_ACTIVATE");
+            // println!("wParam: {:?}, lParam: {:?}", wParam, lParam);
+        },
+        WM_GETMINMAXINFO => {
+            print_msg("WM_GETMINMAXINFO");
+            match wm_getminmaxinfo(hwnd, lParam) {
+                Ok(mminfo) => {
+                    // println!("max size       : {:?}", mminfo.ptMaxSize);
+                    // println!("max position   : {:?}", mminfo.ptMaxPosition);
+                    // println!("min track size : {:?}", mminfo.ptMinTrackSize);
+                    // println!("max track size : {:?}", mminfo.ptMaxTrackSize);
+                    return LRESULT(0);
+                },
+                Err(e) => {
+                    eprintln!("Error: {}", &e);
+                    log::error!("{}", e);
+                }
+            }
+        }
+        WM_NCCREATE => {
+            print_msg("WM_NCCREATE");
+            match wm_nccreate(hwnd, lParam) {
+                Ok(cs) => {
+                    // println!("style: 0x{:x}", cs.style);
+                    // println!("lpCreateParams: {:?}", cs.lpCreateParams);
+                    // println!("lpszClass: {:?}", cs.lpszClass);
+                    // println!("lpszName: {:?}", cs.lpszName);
+                    return LRESULT(0);
+                }
+                Err(e) => {
+                    eprintln!("Error: {}", &e);
+                    log::error!("{}", e);
+                }
+            }
+        }
+
+
+        WM_ACTIVATE => print_msg("WM_ACTIVATE"),
+        WM_ACTIVATEAPP => print_msg("WM_ACTIVATEAPP"),
         WM_AFXFIRST => println!("WM_AFXFIRST"),
         WM_AFXLAST => println!("WM_AFXLAST"),
         WM_APP => println!("WM_APP"),
@@ -748,7 +803,7 @@ unsafe extern "system" fn window_proc(
         // WM_GETFONT => println!(""),
         // WM_GETHOTKEY => println!(""),
         // WM_GETICON => println!(""),
-        // WM_GETMINMAXINFO => println!(""),
+        // WM_GETMINMAXINFO => print_msg("WM_GETMINMAXINFO"),
         // WM_GETOBJECT => println!(""),
         // WM_GETTEXT => println!(""),
         // WM_GETTEXTLENGTH => println!(""),
@@ -820,8 +875,8 @@ unsafe extern "system" fn window_proc(
         // WM_MOVING => println!(""),
         // WM_NCACTIVATE => println!(""),
         // WM_NCCALCSIZE => println!(""),
-        // WM_NCCREATE => println!(""),
-        // WM_NCDESTROY => println!(""),
+        // WM_NCCREATE => print_msg("WM_NCCREATE"),
+        WM_NCDESTROY => print_msg("WM_NCDESTROY"),
         // WM_NCHITTEST => println!(""),
         // WM_NCLBUTTONDBLCLK => println!(""),
         // WM_NCLBUTTONDOWN => println!(""),
@@ -935,10 +990,18 @@ unsafe extern "system" fn window_proc(
         // WM_XBUTTONDOWN => println!(""),
         // WM_XBUTTONUP => println!(""),
         _ => {
-            println!("[{:x?}] 0x{:04x}, {}, {}", hwnd.0, msg, wParam.0, lParam.0);
+            print_msg("");
             // println!("Message {:?} received", msg);
             return DefWindowProcW(hwnd, msg, wParam, lParam);
         },
+    }
+    match msg {
+        WM_NCDESTROY => {
+            print_msg("WM_NCDESTROY");
+            // println!("WM_NCDESTROY received");
+            PostQuitMessage(0);
+        }
+        _ => {}
     }
     LRESULT(0)
 }
@@ -969,4 +1032,49 @@ impl WndProc for WNDPROC {
     }
 }
 
+/// Sent to a window when the size or position of the window is about to change. An application can use this message to override the window's default maximized size and position, or its default minimum or maximum tracking size.
+fn wm_getminmaxinfo(hwnd: HWND, lParam: LPARAM) -> Result<MINMAXINFO> {
+    if lParam == LPARAM(0) {
+        return Err(Error::new(unsafe{GetLastError().into()}, "lParam is null"));
+    }
+    let minmaxinfo = unsafe { &mut *(lParam.0 as *mut MINMAXINFO) }.clone();
+    // log::trace!("wm_getminmaxinfo: {:?}", minmaxinfo);
+
+    Ok(minmaxinfo)
+}
+
+/// Sent prior to the WM_CREATE message when a window is first created.
+fn wm_nccreate(hwnd: HWND, lParam: LPARAM) -> Result<CREATESTRUCTW> {
+    if lParam == LPARAM(0) {
+        println!("lParam is null");
+        return Err(Error::new(unsafe{GetLastError().into()}, "lParam is null"));
+    }
+    let cs = unsafe { &mut *(lParam.0 as *mut CREATESTRUCTW) }.clone();
+    // log::trace!("wm_nccreate: {:?}", cs);
+
+    // log::trace!("location  : {} x {}", cs.x, cs.y);
+    // log::trace!("dimensions: {} x {}", cs.cx, cs.cy);
+    // // log::trace!("style     : 0x{:x}", createstruct.style);
+    // let style = WINDOW_STYLE(cs.style as u32);
+    // log::trace!("style     : {:?}", style);
+    // log::trace!("style (x) : {:?}", cs.dwExStyle);
+    // // let name = unsafe{cs.lpszName.display()}.to_string();
+    // // // let name = cs.lpszName;
+    // // // let name = if name.is_null() {
+    // // //     "null".to_string()
+    // // // } else {
+    // // //     unsafe { String::from_utf16_lossy(std::slice::from_raw_parts(name.0, 256)) }
+    // // // };
+    // // log::trace!("name      : {}", name);
+    // // let class = unsafe{cs.lpszClass.display()}.to_string();
+    // // // let class = cs.lpszClass;
+    // // // let class = if class.is_null() {
+    // // //     "null".to_string()
+    // // // } else {
+    // // //     unsafe { String::from_utf16_lossy(std::slice::from_raw_parts(class.0, 256)) }
+    // // // };
+    // // log::trace!("class     : {}", class);
+
+    Ok(cs)
+}
 
