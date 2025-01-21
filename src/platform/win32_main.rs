@@ -21,6 +21,16 @@ struct DbgOpts {
     pub show_wm_create: bool,
     pub show_wm_showwindow: bool,
     pub show_wm_windowposchanging: bool,
+    pub show_wm_activateapp: bool,
+    pub show_wm_ncactivate: bool,
+    pub show_wm_geticon: bool,
+    pub show_wm_activate: bool,
+    pub show_wm_ime_setcontext: bool,
+    pub show_wm_ime_notify: bool,
+    pub show_wmsz_bottomleft: bool,
+    pub show_wm_ncpaint: bool,
+    pub show_wm_erasebkgnd: bool,
+    pub show_wm_chartoitem: bool,
 
     // pub show_title_bar: bool,
     // pub show_fps: bool,
@@ -46,7 +56,17 @@ const DBG_OPTS: DbgOpts = DbgOpts{
     show_wm_nccalcsize: false,
     show_wm_create: false,
     show_wm_showwindow: false,
-    show_wm_windowposchanging: true,
+    show_wm_windowposchanging: false,
+    show_wm_activateapp: false,
+    show_wm_ncactivate: false,
+    show_wm_geticon: false,
+    show_wm_activate: false,
+    show_wm_ime_setcontext: false,
+    show_wm_ime_notify: false,
+    show_wmsz_bottomleft: false,
+    show_wm_ncpaint: false,
+    show_wm_erasebkgnd: false,
+    show_wm_chartoitem: true,
 
     image_path: "vendor/oculante/res/screenshot_exif.png",
 };
@@ -731,7 +751,7 @@ unsafe extern "system" fn window_proc(
             match wm_getminmaxinfo(hwnd, lParam) {
                 Ok(_mmi) => {
                     if DBG_OPTS.show_wm_getminmaxinfo {
-                        print_msg("WM_GETMINMAXINFO")
+                        print_msg("WM_GETMINMAXINFO");
                     }
                 },
                 Err(e) => {
@@ -743,7 +763,7 @@ unsafe extern "system" fn window_proc(
             match wm_nccreate(hwnd, lParam) {
                 Ok(_cs) => {
                     if DBG_OPTS.show_wm_nccreate {
-                        print_msg("WM_NCCREATE")
+                        print_msg("WM_NCCREATE");
                     }
                 },
                 Err(e) => {
@@ -758,7 +778,7 @@ unsafe extern "system" fn window_proc(
             match wm_nccalcsize(hwnd, lParam) {
                 Ok(_rect) => {
                     if DBG_OPTS.show_wm_nccalcsize {
-                        print_msg("WM_NCCALCSIZE")
+                        print_msg("WM_NCCALCSIZE");
                     }
                 },
                 Err(e) => {
@@ -770,7 +790,7 @@ unsafe extern "system" fn window_proc(
             match wm_create(hwnd, lParam) {
                 Ok(_cs) => {
                     if DBG_OPTS.show_wm_create {
-                        print_msg("WM_CREATE")
+                        print_msg("WM_CREATE");
                     }
                 },
                 Err(e) => {
@@ -780,7 +800,7 @@ unsafe extern "system" fn window_proc(
         }
         WM_SHOWWINDOW => {
             if DBG_OPTS.show_wm_showwindow {
-                print_msg("WM_SHOWWINDOW")
+                print_msg("WM_SHOWWINDOW");
             }
             wm_showwindow(hwnd, wParam, lParam);
         }
@@ -788,7 +808,7 @@ unsafe extern "system" fn window_proc(
             match wm_windowposchanging(hwnd, lParam) {
                 Ok(_wpos) => {
                     if DBG_OPTS.show_wm_windowposchanging {
-                        print_msg("WM_WINDOWPOSCHANGING")
+                        print_msg("WM_WINDOWPOSCHANGING");
                     }
                 },
                 Err(e) => {
@@ -797,39 +817,67 @@ unsafe extern "system" fn window_proc(
             }
         }
         WM_ACTIVATEAPP => {
-            print_msg("WM_ACTIVATEAPP");
+            if DBG_OPTS.show_wm_activateapp {
+                print_msg("WM_ACTIVATEAPP");
+            }
             wm_activateapp(hwnd, wParam, lParam);
             // println!("wParam: {:?}, lParam: {:?}", wParam, lParam);
         },
         WM_NCACTIVATE => {
-            print_msg("WM_NCACTIVATE");
-            // wm_ncactivate(hwnd, wParam, lParam);
+            if DBG_OPTS.show_wm_ncactivate {
+                print_msg("WM_NCACTIVATE");
+            }
+            wm_ncactivate(hwnd, wParam, lParam);
         }
         WM_GETICON => {
-            print_msg("WM_GETICON");
+            if DBG_OPTS.show_wm_geticon {
+                print_msg("WM_GETICON");
+            }
             wm_geticon(hwnd, wParam, lParam);
         }
         WM_ACTIVATE => {
-            print_msg("WM_ACTIVATE");
+            if DBG_OPTS.show_wm_activate {
+                print_msg("WM_ACTIVATE");
+            }
             wm_activate(hwnd, wParam, lParam);
             // println!("wParam: {:?}, lParam: {:?}", wParam, lParam);
         }
         WM_IME_SETCONTEXT => {
-            print_msg("WM_IME_SETCONTEXT");
+            if DBG_OPTS.show_wm_ime_setcontext {
+                print_msg("WM_IME_SETCONTEXT");
+            }
             wm_ime_setcontext(hwnd, wParam, lParam);
         }
         WM_IME_NOTIFY => {
-            print_msg("WM_IME_NOTIFY");
+            if DBG_OPTS.show_wm_ime_notify {
+                print_msg("WM_IME_NOTIFY");
+            }
             wm_ime_notify(hwnd, wParam, lParam);
         }
         WMSZ_BOTTOMLEFT => {
-            print_msg("WMSZ_BOTTOMLEFT");
+            if DBG_OPTS.show_wmsz_bottomleft {
+                print_msg("WMSZ_BOTTOMLEFT");
+            }
             wm_sizing(WMSZ_BOTTOMLEFT, hwnd, wParam, lParam);
         }
         WM_NCPAINT => {
-            print_msg("WM_NCPAINT");
+            if DBG_OPTS.show_wm_ncpaint {
+                print_msg("WM_NCPAINT");
+            }
             wm_ncpaint(hwnd, wParam, lParam);
             println!("\n\n\t\t\tlatest");
+        }
+        WM_ERASEBKGND => {
+            if DBG_OPTS.show_wm_erasebkgnd {
+                print_msg("WM_ERASEBKGND");
+            }
+            wm_erasebkgnd(hwnd, wParam);
+        }
+        WM_CHARTOITEM => {
+            if DBG_OPTS.show_wm_chartoitem {
+                print_msg("WM_CHARTOITEM");
+            }
+            wm_chartoitem(hwnd, wParam, lParam);
         }
 
 
@@ -1274,122 +1322,170 @@ fn wm_windowposchanging(hwnd: HWND, lParam: LPARAM) -> Result<WINDOWPOS> {
 }
 
 fn wm_activate(hwnd: HWND, wParam: WPARAM, lParam: LPARAM) {
-    if wParam.0 == WA_ACTIVE as usize {
-        log::trace!("Window is being activated (owning thread: [0x{:x}])", lParam.0);
-    } else if wParam.0 == WA_CLICKACTIVE as usize {
-        log::trace!("Window is being activated by a mouse click (owning thread: [0x{:x}])", lParam.0);
-    } else if wParam.0 == WA_INACTIVE as usize {
-        log::trace!("Window is being deactivated (owning thread: [0x{:x}])", lParam.0);
+    if DBG_OPTS.show_wm_activate {
+        if wParam.0 == WA_ACTIVE as usize {
+            log::trace!("Window is being activated (owning thread: [0x{:x}])", lParam.0);
+        } else if wParam.0 == WA_CLICKACTIVE as usize {
+            log::trace!("Window is being activated by a mouse click (owning thread: [0x{:x}])", lParam.0);
+        } else if wParam.0 == WA_INACTIVE as usize {
+            log::trace!("Window is being deactivated (owning thread: [0x{:x}])", lParam.0);
+        }
     }
 }
 fn wm_activateapp(hwnd: HWND, wParam: WPARAM, lParam: LPARAM) {
-    if wParam.0 == WA_ACTIVE as usize {
-        log::trace!("App is being activated (owning thread: [0x{:x}])", lParam.0);
-    } else if wParam.0 == WA_CLICKACTIVE as usize {
-        log::trace!("App is being activated by a mouse click (owning thread: [0x{:x}])", lParam.0);
-    } else if wParam.0 == WA_INACTIVE as usize {
-        log::trace!("App is being deactivated (owning thread: [0x{:x}])", lParam.0);
+    if DBG_OPTS.show_wm_activateapp {
+        if wParam.0 == WA_ACTIVE as usize {
+            log::trace!("App is being activated (owning thread: [0x{:x}])", lParam.0);
+        } else if wParam.0 == WA_CLICKACTIVE as usize {
+            log::trace!("App is being activated by a mouse click (owning thread: [0x{:x}])", lParam.0);
+        } else if wParam.0 == WA_INACTIVE as usize {
+            log::trace!("App is being deactivated (owning thread: [0x{:x}])", lParam.0);
+        }
+    }
+}
+
+fn wm_ncactivate(hwnd: HWND, wParam: WPARAM, lParam: LPARAM) {
+    if DBG_OPTS.show_wm_ncactivate {
+        if wParam.0 == 1 {
+            log::trace!("Non-client area is being activated");
+        } else if wParam.0 == 0 {
+            log::trace!("Non-client area is being deactivated");
+        }
     }
 }
 
 fn wm_geticon(hwnd: HWND, wParam: WPARAM, lParam: LPARAM) {
-    if wParam.0 == ICON_SMALL as usize {
-        log::trace!("Message requesting small icon ({} dpi)", lParam.0);
-    } else if wParam.0 == ICON_BIG as usize {
-        log::trace!("Message requesting big icon ({} dpi)", lParam.0);
-    } else if wParam.0 == ICON_SMALL2 as usize {
-        log::trace!("Message requesting small icon 2 ({} dpi)", lParam.0);
-    } else {
-        log::trace!("Message requesting icon of unknown size (wParam: {:?} lParam: {:?})", wParam, lParam);
+    if DBG_OPTS.show_wm_geticon || lParam.0 != 0 {
+        if wParam.0 == ICON_SMALL as usize {
+            log::trace!("Message requesting small icon ({} dpi)", lParam.0);
+        } else if wParam.0 == ICON_BIG as usize {
+            log::trace!("Message requesting big icon ({} dpi)", lParam.0);
+        } else if wParam.0 == ICON_SMALL2 as usize {
+            log::trace!("Message requesting small icon 2 ({} dpi)", lParam.0);
+        } else {
+            log::trace!("Message requesting icon of unknown size (wParam: {:?} lParam: {:?})", wParam, lParam);
+        }
     }
 }
 
 fn wm_ime_setcontext(hwnd: HWND, wParam: WPARAM, lParam: LPARAM) {
-    if wParam.0 == 1 {
-        log::trace!("IME is being set to active");
-    } else if wParam.0 == 0 {
-        log::trace!("IME is being set to inactive");
-    } else {
-        log::trace!("IME is being set to unknown state (wParam: {:?} lParam: {:?})", wParam, lParam);
-    }
-
-    if lParam.0 == ISC_SHOWUIALL as isize {
-        log::trace!("IME is being set to show all UI.");
-        // dbg!(lParam.0, ISC_SHOWUIALL as isize);
-    } else {
-        // if (lParam.0 & (ISC_SHOWUIALLCANDIDATEWINDOW as isize)) == ISC_SHOWUIALLCANDIDATEWINDOW as isize {
-        //     log::trace!("IME is being set to show all candidate window.");
-        //     dbg!(lParam.0, ISC_SHOWUIALLCANDIDATEWINDOW as isize);
-        // }
-        for i in 0..4 as usize {
-            if (lParam.0 & ((ISC_SHOWUICANDIDATEWINDOW<<i) as isize)) == (ISC_SHOWUICANDIDATEWINDOW as isize) {
-                log::trace!("IME is being set to show candidate window {}.", i);
-                dbg!(lParam.0, (ISC_SHOWUICANDIDATEWINDOW<<i) as isize);
-            }
+    if DBG_OPTS.show_wm_ime_setcontext {
+        if wParam.0 == 1 {
+            log::trace!("IME is being set to active");
+        } else if wParam.0 == 0 {
+            log::trace!("IME is being set to inactive");
+        } else {
+            log::trace!("IME is being set to unknown state (wParam: {:?} lParam: {:?})", wParam, lParam);
         }
 
-    }
-    if (lParam.0 & (ISC_SHOWUICOMPOSITIONWINDOW as isize)) == ISC_SHOWUICOMPOSITIONWINDOW as isize {
-        log::trace!("IME is being set to show composition window. (Show the composition window by user interface window.)");
-        // dbg!(lParam.0, ISC_SHOWUICOMPOSITIONWINDOW as isize);
-    }
-    if (lParam.0 & (ISC_SHOWUIGUIDELINE as isize)) == ISC_SHOWUIGUIDELINE as isize {
-        log::trace!("IME is being set to show guide line. (Show the guide window by user interface window.)");
-        // dbg!(lParam.0, ISC_SHOWUIGUIDELINE as isize);
+        if lParam.0 == ISC_SHOWUIALL as isize {
+            log::trace!("IME is being set to show all UI.");
+            // dbg!(lParam.0, ISC_SHOWUIALL as isize);
+        } else {
+            // if (lParam.0 & (ISC_SHOWUIALLCANDIDATEWINDOW as isize)) == ISC_SHOWUIALLCANDIDATEWINDOW as isize {
+            //     log::trace!("IME is being set to show all candidate window.");
+            //     dbg!(lParam.0, ISC_SHOWUIALLCANDIDATEWINDOW as isize);
+            // }
+            for i in 0..4 as usize {
+                if (lParam.0 & ((ISC_SHOWUICANDIDATEWINDOW<<i) as isize)) == (ISC_SHOWUICANDIDATEWINDOW as isize) {
+                    log::trace!("IME is being set to show candidate window {}.", i);
+                    dbg!(lParam.0, (ISC_SHOWUICANDIDATEWINDOW<<i) as isize);
+                }
+            }
+
+        }
+        if (lParam.0 & (ISC_SHOWUICOMPOSITIONWINDOW as isize)) == ISC_SHOWUICOMPOSITIONWINDOW as isize {
+            log::trace!("IME is being set to show composition window. (Show the composition window by user interface window.)");
+            // dbg!(lParam.0, ISC_SHOWUICOMPOSITIONWINDOW as isize);
+        }
+        if (lParam.0 & (ISC_SHOWUIGUIDELINE as isize)) == ISC_SHOWUIGUIDELINE as isize {
+            log::trace!("IME is being set to show guide line. (Show the guide window by user interface window.)");
+            // dbg!(lParam.0, ISC_SHOWUIGUIDELINE as isize);
+        }
     }
 }
 
 fn wm_ime_notify(hwnd: HWND, wParam: WPARAM, lParam: LPARAM) {
-    if wParam.0 == IMN_CHANGECANDIDATE as usize {
-        log::trace!("IME is notifying of candidate change.");
-    }
-    if wParam.0 == IMN_CLOSECANDIDATE as usize {
-        log::trace!("IME is notifying of candidate window closing.");
-    }
-    if wParam.0 == IMN_CLOSESTATUSWINDOW as usize {
-        log::trace!("IME is closing the status window.");
-    }
-    if wParam.0 == IMN_GUIDELINE as usize {
-        log::trace!("IME is notifying of guideline.");
-    }
-    if wParam.0 == IMN_OPENCANDIDATE as usize {
-        log::trace!("IME is opening the candidate window.");
-    }
-    if wParam.0 == IMN_OPENSTATUSWINDOW as usize {
-        log::trace!("IME is opening the status window.");
-    }
-    if wParam.0 == IMN_SETCANDIDATEPOS as usize {
-        log::trace!("IME is setting candidate position.");
-    }
-    if wParam.0 == IMN_SETCOMPOSITIONFONT as usize {
-        log::trace!("IME is setting composition font.");
-    }
-    if wParam.0 == IMN_SETCOMPOSITIONWINDOW as usize {
-        log::trace!("IME is setting composition window.");
-    }
-    if wParam.0 == IMN_SETCONVERSIONMODE as usize {
-        log::trace!("IME is setting conversion mode.");
-    }
-    if wParam.0 == IMN_SETOPENSTATUS as usize {
-        log::trace!("IME is setting open status.");
-    }
-    if wParam.0 == IMN_SETSENTENCEMODE as usize {
-        log::trace!("IME is setting sentence mode.");
-    }
-    if wParam.0 == IMN_SETSTATUSWINDOWPOS as usize {
-        log::trace!("IME is setting status window position.");
-    }
-    if lParam.0 != 0 {
-        log::trace!("IME notify event params (wParam: {:?} lParam: {:?})", wParam, lParam);
+    if DBG_OPTS.show_wm_ime_notify {
+
+        if wParam.0 == IMN_CHANGECANDIDATE as usize {
+            log::trace!("IME is notifying of candidate change.");
+        }
+        if wParam.0 == IMN_CLOSECANDIDATE as usize {
+            log::trace!("IME is notifying of candidate window closing.");
+        }
+        if wParam.0 == IMN_CLOSESTATUSWINDOW as usize {
+            log::trace!("IME is closing the status window.");
+        }
+        if wParam.0 == IMN_GUIDELINE as usize {
+            log::trace!("IME is notifying of guideline.");
+        }
+        if wParam.0 == IMN_OPENCANDIDATE as usize {
+            log::trace!("IME is opening the candidate window.");
+        }
+        if wParam.0 == IMN_OPENSTATUSWINDOW as usize {
+            log::trace!("IME is opening the status window.");
+        }
+        if wParam.0 == IMN_SETCANDIDATEPOS as usize {
+            log::trace!("IME is setting candidate position.");
+        }
+        if wParam.0 == IMN_SETCOMPOSITIONFONT as usize {
+            log::trace!("IME is setting composition font.");
+        }
+        if wParam.0 == IMN_SETCOMPOSITIONWINDOW as usize {
+            log::trace!("IME is setting composition window.");
+        }
+        if wParam.0 == IMN_SETCONVERSIONMODE as usize {
+            log::trace!("IME is setting conversion mode.");
+        }
+        if wParam.0 == IMN_SETOPENSTATUS as usize {
+            log::trace!("IME is setting open status.");
+        }
+        if wParam.0 == IMN_SETSENTENCEMODE as usize {
+            log::trace!("IME is setting sentence mode.");
+        }
+        if wParam.0 == IMN_SETSTATUSWINDOWPOS as usize {
+            log::trace!("IME is setting status window position.");
+        }
+        if lParam.0 != 0 {
+            log::trace!("IME notify event params (wParam: {:?} lParam: {:?})", wParam, lParam);
+        }
     }
 }
 
 fn wm_sizing(msg: u32, hwnd: HWND, wParam: WPARAM, lParam: LPARAM) {
-    log::trace!("wm_sizing: 0x{:x} ({}) wParam: {}, lParam: {}", msg, msg, wParam.0, lParam.0);
+    match msg {
+        WMSZ_BOTTOMLEFT => {
+            if DBG_OPTS.show_wmsz_bottomleft {
+                log::trace!("Window is being resized from the bottom-left corner (?).");
+            }
+            return;
+        }
+        _ => {
+            log::trace!("wm_sizing: 0x{:x} ({}) wParam: {}, lParam: {}", msg, msg, wParam.0, lParam.0);
+        }
+    }
 }
 
 fn wm_ncpaint(hwnd: HWND, wParam: WPARAM, lParam: LPARAM) {
-    log::trace!("wm_ncpaint: wParam: {}, lParam: {}", wParam.0, lParam.0);
+    if DBG_OPTS.show_wm_ncpaint {
+        log::trace!("wm_ncpaint: wParam: {}, lParam: {}", wParam.0, lParam.0);
+    }
 }
+
+fn wm_erasebkgnd(hwnd: HWND, wParam: WPARAM) {
+    if DBG_OPTS.show_wm_erasebkgnd {
+        log::trace!("wm_erasebkgnd: hDC: 0x{:08x}", wParam.0);
+    }
+}
+
+fn wm_chartoitem(hwnd: HWND, wParam: WPARAM, lParam: LPARAM) {
+    if DBG_OPTS.show_wm_chartoitem {
+        let key = wParam.0 as u16;
+        let pos = (wParam.0 >> 16) as u16;
+        log::trace!("wm_chartoitem: char: {}, pos: {}, hWND: 0x{:08x}", key, pos, lParam.0);
+    }
+}
+
 
 //
