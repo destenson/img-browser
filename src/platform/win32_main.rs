@@ -671,6 +671,14 @@ unsafe extern "system" fn window_proc(
     wParam: WPARAM,
     lParam: LPARAM,
 ) -> LRESULT {
+    let print_msg = |str_msg: &str| {
+        let msg = match str_msg {
+            "" => format!("0x{:04x} {}", msg, msg),
+            m => format!("{}", m),
+        };
+        println!("[{:x?}] {}, {}, {}", hwnd.0, msg, wParam.0, lParam.0);
+        log::trace!("[{:x?}] {}, {}, {}", hwnd.0, msg, wParam.0, lParam.0);
+    };
     // log::info!("Message {:?} received", msg);
     // println!("Message {:?} received", msg);
     match msg {
@@ -679,6 +687,9 @@ unsafe extern "system" fn window_proc(
             DestroyWindow(hwnd).expect("DestroyWindow failed");
             return LRESULT(0);
         }
+
+
+        
         WM_ACTIVATE => println!("WM_ACTIVATE"),
         WM_ACTIVATEAPP => println!("WM_ACTIVATEAPP"),
         WM_AFXFIRST => println!("WM_AFXFIRST"),
