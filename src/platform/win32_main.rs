@@ -104,7 +104,7 @@ pub fn main() -> Result<()> {
         }
         // match msg.message.bitand(0xffff) {
         match msg.message {
-                WM_QUIT | WM_CLOSE => {
+            WM_QUIT | WM_CLOSE => {
                 if msg.message == WM_QUIT {
                     println!("WM_QUIT");
                 } else {
@@ -676,20 +676,43 @@ unsafe extern "system" fn window_proc(
             "" => format!("0x{:04x} {}", msg, msg),
             m => format!("{}", m),
         };
-        println!("[{:x?}] {}, {}, {}", hwnd.0, msg, wParam.0, lParam.0);
+        // println!("[{:x?}] {}, {}, {}", hwnd.0, msg, wParam.0, lParam.0);
         log::trace!("[{:x?}] {}, {}, {}", hwnd.0, msg, wParam.0, lParam.0);
     };
     // log::info!("Message {:?} received", msg);
     // println!("Message {:?} received", msg);
     match msg {
         WM_CLOSE => {
-            println!("WM_CLOSE received");
+            print_msg("WM_CLOSE");
             DestroyWindow(hwnd).expect("DestroyWindow failed");
             return LRESULT(0);
         }
+        WM_ACTIVATE => {
+            print_msg("WM_ACTIVATE");
+            // println!("wParam: {:?}, lParam: {:?}", wParam, lParam);
+        },
+        WM_GETMINMAXINFO => {
+            match wm_getminmaxinfo(hwnd, lParam) {
+                Ok(_) => print_msg("WM_GETMINMAXINFO"),
+                Err(e) => {
+                    println!("Error in WM_GETMINMAXINFO: {:?}", e);
+                }
+            }
+        }
+        WM_NCCREATE => {
+            print_msg("WM_NCCREATE");
+            wm_nccreate(hwnd, lParam);
+        }
+        WM_NCDESTROY => {
+            print_msg("WM_NCDESTROY");
+        }
+        WM_NCCALCSIZE => {
+            print_msg("WM_NCCALCSIZE");
+            wm_nccalcsize(hwnd, lParam);
+        }
 
 
-        
+
         WM_ACTIVATE => println!("WM_ACTIVATE"),
         WM_ACTIVATEAPP => println!("WM_ACTIVATEAPP"),
         WM_AFXFIRST => println!("WM_AFXFIRST"),
@@ -951,7 +974,8 @@ unsafe extern "system" fn window_proc(
             return DefWindowProcW(hwnd, msg, wParam, lParam);
         },
     }
-    LRESULT(0)
+    return DefWindowProcW(hwnd, msg, wParam, lParam);
+    // LRESULT(0)
 }
 
 pub trait WndProc: Borrow<WNDPROC> {
@@ -980,4 +1004,63 @@ impl WndProc for WNDPROC {
     }
 }
 
+/// Sent to a window when the size or position of the window is about to change. An application can use this message to override the window's default maximized size and position, or its default minimum or maximum tracking size.
+fn wm_getminmaxinfo(hwnd: HWND, lParam: LPARAM) -> Result<MINMAXINFO> {
+    if lParam == LPARAM(0) {
+        return Err(Error::new(unsafe{GetLastError().into()}, "lParam is null"));
+    }
+    let minmaxinfo = unsafe { &mut *(lParam.0 as *mut MINMAXINFO) }.clone();
+    // log::trace!("wm_getminmaxinfo: {:?}", minmaxinfo);
 
+    Ok(minmaxinfo)
+}
+
+
+
+/// Sent prior to the WM_CREATE message when a window is first created.
+fn wm_nccreate(hwnd: HWND, lParam: LPARAM) -> Result<CREATESTRUCTW> {
+    if lParam == LPARAM(0) {
+        eprintln!("lParam is null");
+        return Err(Error::new(unsafe{GetLastError().into()}, "lParam is null"));
+    }
+    let cs = unsafe { &mut *(lParam.0 as *mut CREATESTRUCTW) }.clone();
+    log::trace!("wm_nccreate: {:?}", cs);
+
+    log::trace!("location  : {} x {}", cs.x, cs.y);
+    log::trace!("dimensions: {} x {}", cs.cx, cs.cy);
+    // log::trace!("style     : 0x{:x}", createstruct.style);
+    let style = WINDOW_STYLE(cs.style as u32);
+    log::trace!("style     : {:?}", style);
+    log::trace!("style (x) : {:?}", cs.dwExStyle);
+    // let name = unsafe{cs.lpszName.display()}.to_string();
+    // // let name = cs.lpszName;
+    // // let name = if name.is_null() {
+    // //     "null".to_string()
+    // // } else {
+    // //     unsafe { String::from_utf16_lossy(std::slice::from_raw_parts(name.0, 256)) }
+    // // };
+    // log::trace!("name      : {}", name);
+    // let class = unsafe{cs.lpszClass.display()}.to_string();
+    // // let class = cs.lpszClass;
+    // // let class = if class.is_null() {
+    // //     "null".to_string()
+    // // } else {
+    // //     unsafe { String::from_utf16_lossy(std::slice::from_raw_parts(class.0, 256)) }
+    // // };
+    // log::trace!("class     : {}", class);
+
+    Ok(cs)
+}
+
+fn wm_nccalcsize(hwnd: HWND, lParam: LPARAM) -> Result<RECT> {
+    if lParam == LPARAM(0) {
+        log::trace!("lParam is null");
+        return Err(Error::new(unsafe{GetLastError().into()}, "lParam is null"));
+    }
+    let rect = unsafe { &mut *(lParam.0 as *mut RECT) }.clone();
+    log::trace!("wm_nccalcsize: {:?}", rect);
+    Ok(rect)
+}
+
+
+//
