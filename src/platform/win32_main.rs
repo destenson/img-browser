@@ -31,6 +31,12 @@ struct DbgOpts {
     pub show_wm_ncpaint: bool,
     pub show_wm_erasebkgnd: bool,
     pub show_wm_chartoitem: bool,
+    pub show_wm_windowposchanged: bool,
+    pub show_wmsz_topright: bool,
+    pub show_wmsz_top: bool,
+    pub show_dwmncrenderingchanged: bool,
+    pub show_wm_paint: bool,
+    pub show_wm_nchittest: bool,
 
     // pub show_title_bar: bool,
     // pub show_fps: bool,
@@ -67,6 +73,12 @@ const DBG_OPTS: DbgOpts = DbgOpts{
     show_wm_ncpaint: false,
     show_wm_erasebkgnd: false,
     show_wm_chartoitem: true,
+    show_wm_windowposchanged: false,
+    show_wmsz_topright: false,
+    show_wmsz_top: false,
+    show_dwmncrenderingchanged: false,
+    show_wm_paint: false,
+    show_wm_nchittest: true,
 
     image_path: "vendor/oculante/res/screenshot_exif.png",
 };
@@ -865,7 +877,6 @@ unsafe extern "system" fn window_proc(
                 print_msg("WM_NCPAINT");
             }
             wm_ncpaint(hwnd, wParam, lParam);
-            println!("\n\n\t\t\tlatest");
         }
         WM_ERASEBKGND => {
             if DBG_OPTS.show_wm_erasebkgnd {
@@ -878,6 +889,48 @@ unsafe extern "system" fn window_proc(
                 print_msg("WM_CHARTOITEM");
             }
             wm_chartoitem(hwnd, wParam, lParam);
+        }
+        WM_WINDOWPOSCHANGED => {
+            if DBG_OPTS.show_wm_windowposchanged {
+                print_msg("WM_WINDOWPOSCHANGED");
+            }
+            wm_windowposchanged(hwnd, lParam);
+        }
+        WMSZ_TOPRIGHT => {
+            if DBG_OPTS.show_wmsz_topright {
+                print_msg("WMSZ_TOPRIGHT");
+            }
+            wm_sizing(WMSZ_TOPRIGHT, hwnd, wParam, lParam);
+        }
+        WMSZ_TOP => {
+            if DBG_OPTS.show_wmsz_top {
+                print_msg("WMSZ_TOP");
+            }
+            wm_sizing(WMSZ_TOP, hwnd, wParam, lParam);
+        }
+        WM_DWMNCRENDERINGCHANGED => {
+            if DBG_OPTS.show_dwmncrenderingchanged {
+                if wParam == WPARAM(1) {
+                    print_msg("WM_DWMNCRENDERINGCHANGED on");
+                } else if wParam == WPARAM(0) {
+                    print_msg("WM_DWMNCRENDERINGCHANGED off");
+                } else {
+                    print_msg("WM_DWMNCRENDERINGCHANGED");
+                }
+            }
+        }
+        WM_PAINT => {
+            if DBG_OPTS.show_wm_paint {
+                print_msg("WM_PAINT");
+            }
+            wm_paint(hwnd);
+        }
+        WM_NCHITTEST => {
+            if DBG_OPTS.show_wm_nchittest {
+                print_msg("WM_NCHITTEST");
+            }
+            // wm_nchittest(hwnd, lParam);
+            println!("\n\n\t\t\tlatest");
         }
 
 
@@ -1454,15 +1507,37 @@ fn wm_ime_notify(hwnd: HWND, wParam: WPARAM, lParam: LPARAM) {
 }
 
 fn wm_sizing(msg: u32, hwnd: HWND, wParam: WPARAM, lParam: LPARAM) {
+    // if lParam == LPARAM(0) {
+    //     eprintln!("lParam is null");
+    //     return;
+    // }
     match msg {
         WMSZ_BOTTOMLEFT => {
+            // let rect = unsafe { &mut *(lParam.0 as *mut RECT) }.clone();
             if DBG_OPTS.show_wmsz_bottomleft {
-                log::trace!("Window is being resized from the bottom-left corner (?).");
+                log::trace!("Window is being resized from the bottom-left corner (?)");
+                log::trace!("WMSZ_BOTTOMLEFT: wParam: {}, lParam: 0x{:0x}", wParam.0, lParam.0);
             }
             return;
         }
+        WMSZ_TOPRIGHT => {
+            // let rect = unsafe { &mut *(lParam.0 as *mut RECT) }.clone();
+            if DBG_OPTS.show_wmsz_topright {
+                log::trace!("Window is being resized from the top-right corner (?)");
+                log::trace!("WMSZ_TOPRIGHT: wParam: {}, lParam: 0x{:0x}", wParam.0, lParam.0);
+            }
+            return;
+        }
+        WMSZ_TOP => {
+            // let rect = unsafe { &mut *(lParam.0 as *mut RECT) }.clone();
+            if DBG_OPTS.show_wmsz_top {
+                log::trace!("Window is being resized from the top (?)");
+                log::trace!("WMSZ_TOP: wParam: {}, lParam: 0x{:0x}", wParam.0, lParam.0);
+            }
+        }
         _ => {
-            log::trace!("wm_sizing: 0x{:x} ({}) wParam: {}, lParam: {}", msg, msg, wParam.0, lParam.0);
+            // let rect = unsafe { &mut *(lParam.0 as *mut RECT) }.clone();
+            log::trace!("wm_sizing: 0x{:x} ({}) wParam: {}, lParam: 0x{:0x}", msg, msg, wParam.0, lParam.0);
         }
     }
 }
@@ -1484,6 +1559,31 @@ fn wm_chartoitem(hwnd: HWND, wParam: WPARAM, lParam: LPARAM) {
         let key = wParam.0 as u16;
         let pos = (wParam.0 >> 16) as u16;
         log::trace!("wm_chartoitem: char: {}, pos: {}, hWND: 0x{:08x}", key, pos, lParam.0);
+    }
+}
+
+fn wm_windowposchanged(hwnd: HWND, lParam: LPARAM) {
+    if lParam == LPARAM(0) {
+        log::trace!("lParam is null");
+        return;
+    }
+    let wp = unsafe { &mut *(lParam.0 as *mut WINDOWPOS) }.clone();
+    if DBG_OPTS.show_wm_windowposchanged {
+        log::trace!("wm_windowposchanged: {:?}", wp);
+        log::trace!("location  : {} x {}", wp.x, wp.y);
+        log::trace!("dimensions: {} x {}", wp.cx, wp.cy);
+        log::trace!("flags     : 0x{:x}", wp.flags.0);
+    }
+}
+
+fn wm_paint(hwnd: HWND) {
+    if DBG_OPTS.show_wm_paint {
+        if hwnd.is_invalid() {
+            log::trace!("wm_paint: hWND: null");
+            return;
+        } else {
+            log::trace!("wm_paint: hWND: 0x{:08p}", hwnd.0);
+        }
     }
 }
 
