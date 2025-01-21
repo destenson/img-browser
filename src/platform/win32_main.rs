@@ -20,6 +20,7 @@ struct DbgOpts {
     pub show_wm_nccalcsize: bool,
     pub show_wm_create: bool,
     pub show_wm_showwindow: bool,
+    pub show_wm_windowposchanging: bool,
 
     // pub show_title_bar: bool,
     // pub show_fps: bool,
@@ -45,6 +46,7 @@ const DBG_OPTS: DbgOpts = DbgOpts{
     show_wm_nccalcsize: false,
     show_wm_create: false,
     show_wm_showwindow: false,
+    show_wm_windowposchanging: true,
 
     image_path: "vendor/oculante/res/screenshot_exif.png",
 };
@@ -727,7 +729,7 @@ unsafe extern "system" fn window_proc(
 
         WM_GETMINMAXINFO => {
             match wm_getminmaxinfo(hwnd, lParam) {
-                Ok(_) => {
+                Ok(_mmi) => {
                     if DBG_OPTS.show_wm_getminmaxinfo {
                         print_msg("WM_GETMINMAXINFO")
                     }
@@ -754,7 +756,7 @@ unsafe extern "system" fn window_proc(
         }
         WM_NCCALCSIZE => {
             match wm_nccalcsize(hwnd, lParam) {
-                Ok(_cs) => {
+                Ok(_rect) => {
                     if DBG_OPTS.show_wm_nccalcsize {
                         print_msg("WM_NCCALCSIZE")
                     }
@@ -766,7 +768,7 @@ unsafe extern "system" fn window_proc(
         }
         WM_CREATE => {
             match wm_create(hwnd, lParam) {
-                Ok(_) => {
+                Ok(_cs) => {
                     if DBG_OPTS.show_wm_create {
                         print_msg("WM_CREATE")
                     }
@@ -777,12 +779,22 @@ unsafe extern "system" fn window_proc(
             }
         }
         WM_SHOWWINDOW => {
-            print_msg("WM_SHOWWINDOW");
+            if DBG_OPTS.show_wm_showwindow {
+                print_msg("WM_SHOWWINDOW")
+            }
             wm_showwindow(hwnd, wParam, lParam);
         }
         WM_WINDOWPOSCHANGING => {
-            print_msg("WM_WINDOWPOSCHANGING");
-            wm_windowposchanging(hwnd, lParam);
+            match wm_windowposchanging(hwnd, lParam) {
+                Ok(_wpos) => {
+                    if DBG_OPTS.show_wm_windowposchanging {
+                        print_msg("WM_WINDOWPOSCHANGING")
+                    }
+                },
+                Err(e) => {
+                    println!("Error in WM_WINDOWPOSCHANGING: {:?}", e);
+                }
+            }
         }
         WM_ACTIVATEAPP => {
             print_msg("WM_ACTIVATEAPP");
@@ -1252,10 +1264,12 @@ fn wm_windowposchanging(hwnd: HWND, lParam: LPARAM) -> Result<WINDOWPOS> {
         return Err(Error::new(unsafe{GetLastError().into()}, "lParam is null"));
     }
     let wp = unsafe { &mut *(lParam.0 as *mut WINDOWPOS) }.clone();
-    log::trace!("wm_windowposchanging: {:?}", wp);
-    log::trace!("location  : {} x {}", wp.x, wp.y);
-    log::trace!("dimensions: {} x {}", wp.cx, wp.cy);
-    log::trace!("flags     : 0x{:x}", wp.flags.0);
+    if DBG_OPTS.show_wm_windowposchanging {
+        log::trace!("wm_windowposchanging: {:?}", wp);
+        log::trace!("location  : {} x {}", wp.x, wp.y);
+        log::trace!("dimensions: {} x {}", wp.cx, wp.cy);
+        log::trace!("flags     : 0x{:x}", wp.flags.0);
+    }
     Ok(wp)
 }
 
