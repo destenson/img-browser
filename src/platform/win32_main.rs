@@ -14,7 +14,43 @@ use image::DynamicImage;
 
 use defer::defer;
 
-const image_path: &str = "vendor/oculante/res/screenshot_exif.png";
+struct DbgOpts {
+    pub show_wm_getminmaxinfo: bool,
+    pub show_wm_nccreate: bool,
+    pub show_wm_nccalcsize: bool,
+    pub show_wm_create: bool,
+    pub show_wm_showwindow: bool,
+
+    // pub show_title_bar: bool,
+    // pub show_fps: bool,
+    // pub show_mouse: bool,
+    // pub show_keyboard: bool,
+    // pub show_touch: bool,
+    // pub show_gamepad: bool,
+    // pub show_joystick: bool,
+    // pub show_controller: bool,
+    // pub show_pointer: bool,
+    // pub show_gesture: bool,
+    // pub show_touchpad: bool,
+    // pub show_stylus: bool,
+    // pub show_pen: bool,
+    // pub show_ink: bool,
+  
+    image_path: &'static str,
+}
+
+const DBG_OPTS: DbgOpts = DbgOpts{
+    show_wm_getminmaxinfo: false,
+    show_wm_nccreate: false,
+    show_wm_nccalcsize: false,
+    show_wm_create: false,
+    show_wm_showwindow: false,
+
+    image_path: "vendor/oculante/res/screenshot_exif.png",
+};
+
+// const image_path: &str = "vendor/oculante/res/screenshot_exif.png";
+const image_path: &str = DBG_OPTS.image_path;
 
 pub fn main() -> Result<()> {
     use WndProc;
@@ -691,26 +727,54 @@ unsafe extern "system" fn window_proc(
 
         WM_GETMINMAXINFO => {
             match wm_getminmaxinfo(hwnd, lParam) {
-                Ok(_) => print_msg("WM_GETMINMAXINFO"),
+                Ok(_) => {
+                    if DBG_OPTS.show_wm_getminmaxinfo {
+                        print_msg("WM_GETMINMAXINFO")
+                    }
+                },
                 Err(e) => {
                     println!("Error in WM_GETMINMAXINFO: {:?}", e);
                 }
             }
         }
         WM_NCCREATE => {
-            print_msg("WM_NCCREATE");
-            wm_nccreate(hwnd, lParam);
+            match wm_nccreate(hwnd, lParam) {
+                Ok(_cs) => {
+                    if DBG_OPTS.show_wm_nccreate {
+                        print_msg("WM_NCCREATE")
+                    }
+                },
+                Err(e) => {
+                    println!("Error in WM_NCCREATE: {:?}", e);
+                }
+            }
         }
         WM_NCDESTROY => {
             print_msg("WM_NCDESTROY");
         }
         WM_NCCALCSIZE => {
-            print_msg("WM_NCCALCSIZE");
-            wm_nccalcsize(hwnd, lParam);
+            match wm_nccalcsize(hwnd, lParam) {
+                Ok(_cs) => {
+                    if DBG_OPTS.show_wm_nccalcsize {
+                        print_msg("WM_NCCALCSIZE")
+                    }
+                },
+                Err(e) => {
+                    println!("Error in WM_NCCALCSIZE: {:?}", e);
+                }
+            }
         }
         WM_CREATE => {
-            print_msg("WM_CREATE");
-            wm_create(hwnd, lParam);
+            match wm_create(hwnd, lParam) {
+                Ok(_) => {
+                    if DBG_OPTS.show_wm_create {
+                        print_msg("WM_CREATE")
+                    }
+                },
+                Err(e) => {
+                    println!("Error in WM_CREATE: {:?}", e);
+                }
+            }
         }
         WM_SHOWWINDOW => {
             print_msg("WM_SHOWWINDOW");
@@ -744,7 +808,15 @@ unsafe extern "system" fn window_proc(
         }
         WM_IME_NOTIFY => {
             print_msg("WM_IME_NOTIFY");
-            // wm_ime_notify(hwnd, wParam, lParam);
+            wm_ime_notify(hwnd, wParam, lParam);
+        }
+        WMSZ_BOTTOMLEFT => {
+            print_msg("WMSZ_BOTTOMLEFT");
+            wm_sizing(WMSZ_BOTTOMLEFT, hwnd, wParam, lParam);
+        }
+        WM_NCPAINT => {
+            print_msg("WM_NCPAINT");
+            wm_ncpaint(hwnd, wParam, lParam);
             println!("\n\n\t\t\tlatest");
         }
 
@@ -1047,7 +1119,9 @@ fn wm_getminmaxinfo(hwnd: HWND, lParam: LPARAM) -> Result<MINMAXINFO> {
         return Err(Error::new(unsafe{GetLastError().into()}, "lParam is null"));
     }
     let minmaxinfo = unsafe { &mut *(lParam.0 as *mut MINMAXINFO) }.clone();
-    log::trace!("wm_getminmaxinfo: {:?}", minmaxinfo);
+    if DBG_OPTS.show_wm_getminmaxinfo {
+        log::trace!("wm_getminmaxinfo: {:?}", minmaxinfo);
+    }
 
     Ok(minmaxinfo)
 }
@@ -1061,30 +1135,33 @@ fn wm_nccreate(hwnd: HWND, lParam: LPARAM) -> Result<CREATESTRUCTW> {
         return Err(Error::new(unsafe{GetLastError().into()}, "lParam is null"));
     }
     let cs = unsafe { &mut *(lParam.0 as *mut CREATESTRUCTW) }.clone();
-    log::trace!("wm_nccreate: {:?}", cs);
 
-    log::trace!("location  : {} x {}", cs.x, cs.y);
-    log::trace!("dimensions: {} x {}", cs.cx, cs.cy);
-    // log::trace!("style     : 0x{:x}", createstruct.style);
-    let style = WINDOW_STYLE(cs.style as u32);
-    log::trace!("style     : {:?}", style);
-    log::trace!("style (x) : {:?}", cs.dwExStyle);
-    let name = unsafe{cs.lpszName.display()}.to_string();
-    // let name = cs.lpszName;
-    // let name = if name.is_null() {
-    //     "null".to_string()
-    // } else {
-    //     unsafe { String::from_utf16_lossy(std::slice::from_raw_parts(name.0, 256)) }
-    // };
-    log::trace!("name      : {}", name);
-    // let class = unsafe{cs.lpszClass.display()}.to_string();
-    // // let class = cs.lpszClass;
-    // // let class = if class.is_null() {
-    // //     "null".to_string()
-    // // } else {
-    // //     unsafe { String::from_utf16_lossy(std::slice::from_raw_parts(class.0, 256)) }
-    // // };
-    // log::trace!("class     : {}", class);
+    if DBG_OPTS.show_wm_nccreate {
+        log::trace!("wm_nccreate: {:?}", cs);
+
+        log::trace!("location  : {} x {}", cs.x, cs.y);
+        log::trace!("dimensions: {} x {}", cs.cx, cs.cy);
+        // log::trace!("style     : 0x{:x}", createstruct.style);
+        let style = WINDOW_STYLE(cs.style as u32);
+        log::trace!("style     : {:?}", style);
+        log::trace!("style (x) : {:?}", cs.dwExStyle);
+        if cs.lpszName.is_null() {
+            log::trace!("name      : null");
+        } else {
+            let name = unsafe{cs.lpszName.display()}.to_string();
+            log::trace!("name      : {}", name);
+        }
+
+        // // TODO: the following crashes if the class is an ATOM
+        // let class = unsafe{cs.lpszClass.display()}.to_string();
+        // // let class = cs.lpszClass;
+        // // let class = if class.is_null() {
+        // //     "null".to_string()
+        // // } else {
+        // //     unsafe { String::from_utf16_lossy(std::slice::from_raw_parts(class.0, 256)) }
+        // // };
+        // log::trace!("class     : {}", class);
+    }
 
     Ok(cs)
 }
@@ -1095,7 +1172,9 @@ fn wm_nccalcsize(hwnd: HWND, lParam: LPARAM) -> Result<RECT> {
         return Err(Error::new(unsafe{GetLastError().into()}, "lParam is null"));
     }
     let rect = unsafe { &mut *(lParam.0 as *mut RECT) }.clone();
-    log::trace!("wm_nccalcsize: {:?}", rect);
+    if DBG_OPTS.show_wm_nccalcsize {
+        log::trace!("wm_nccalcsize: {:?}", rect);
+    }
     Ok(rect)
 }
 
@@ -1105,56 +1184,66 @@ fn wm_create(hwnd: HWND, lParam: LPARAM) -> Result<CREATESTRUCTW> {
         return Err(Error::new(unsafe{GetLastError().into()}, "lParam is null"));
     }
     let cs = unsafe { &mut *(lParam.0 as *mut CREATESTRUCTW) }.clone();
-    log::trace!("wm_create: {:?}", cs);
-    if cs.hwndParent.is_invalid() {
-        log::trace!("Creating root window");
+    if DBG_OPTS.show_wm_create {
+        log::trace!("wm_create: {:?}", cs);
+        if cs.hwndParent.is_invalid() {
+            log::trace!("Creating root window");
+        }
+        log::trace!("location  : {} x {}", cs.x, cs.y);
+        log::trace!("dimensions: {} x {}", cs.cx, cs.cy);
+        // log::trace!("style     : 0x{:x}", createstruct.style);
+        let style = WINDOW_STYLE(cs.style as u32);
+        log::trace!("style     : {:?}", style);
+        log::trace!("style (x) : {:?}", cs.dwExStyle);
+        if cs.lpszName.is_null() {
+            log::trace!("name      : null");
+        } else {
+            let name = unsafe{cs.lpszName.display()}.to_string();
+            log::trace!("name      : {}", name);
+        }
+
+        // // TODO: the following crashes if the class is an ATOM
+        // let class = unsafe{cs.lpszClass.display()}.to_string();
+        // // let class = cs.lpszClass;
+        // // let class = if class.is_null() {
+        // //     "null".to_string()
+        // // } else {
+        // //     unsafe { String::from_utf16_lossy(std::slice::from_raw_parts(class.0, 256)) }
+        // // };
+        // log::trace!("class     : {}", class);
     }
-    log::trace!("location  : {} x {}", cs.x, cs.y);
-    log::trace!("dimensions: {} x {}", cs.cx, cs.cy);
-    // log::trace!("style     : 0x{:x}", createstruct.style);
-    let style = WINDOW_STYLE(cs.style as u32);
-    log::trace!("style     : {:?}", style);
-    log::trace!("style (x) : {:?}", cs.dwExStyle);
-    let name = unsafe{cs.lpszName.display()}.to_string();
-    log::trace!("name      : {}", name);
-    // let class = unsafe{cs.lpszClass.display()}.to_string();
-    // // let class = cs.lpszClass;
-    // // let class = if class.is_null() {
-    // //     "null".to_string()
-    // // } else {
-    // //     unsafe { String::from_utf16_lossy(std::slice::from_raw_parts(class.0, 256)) }
-    // // };
-    // log::trace!("class     : {}", class);
 
     Ok(cs)
 }
 
 
 fn wm_showwindow(hwnd: HWND, wParam: WPARAM, lParam: LPARAM) {
-    match (wParam.0, lParam.0) {
-        (1, 0) => {
-            log::trace!("Window is being shown due to a call to ShowWindow");
-        },
-        (0, 0) => {
-            log::trace!("Window is being hidden due to a call to ShowWindow");
-        },
-        (s, p) if p == SW_PARENTCLOSING.0 as isize => {
-            log::trace!("Window is being {} because its owner window is being minimized.", if s == 1 {"shown"} else {"hidden"});
-        }
-        (s, p) if p == SW_OTHERZOOM.0 as isize => {
-            log::trace!("Window is being {} because it is being covered by another window that has been maximized.", if s == 1 {"shown"} else {"hidden"});
-        }
-        (s, p) if p == SW_PARENTOPENING.0 as isize => {
-            log::trace!("Window is being {} because its owner window is being restored.", if s == 1 {"shown"} else {"hidden"});
-        }
-        (s, p) if p == SW_OTHERUNZOOM.0 as isize => {
-            log::trace!("Window is being {} because a maximize window was restored or minimized.", if s == 1 {"shown"} else {"hidden"});
-        }
-        (s, p) => {
-            log::trace!("Window is being {} because of reason #{}.", if s == 1 {"shown"} else {"hidden"}, p);
+    if DBG_OPTS.show_wm_showwindow {
+        log::trace!("wm_showwindow: wParam: {}, lParam: {}", wParam.0, lParam.0);
+        match (wParam.0, lParam.0) {
+            (1, 0) => {
+                log::trace!("Window is being shown due to a call to ShowWindow");
+            },
+            (0, 0) => {
+                log::trace!("Window is being hidden due to a call to ShowWindow");
+            },
+            (s, p) if p == SW_PARENTCLOSING.0 as isize => {
+                log::trace!("Window is being {} because its owner window is being minimized.", if s == 1 {"shown"} else {"hidden"});
+            }
+            (s, p) if p == SW_OTHERZOOM.0 as isize => {
+                log::trace!("Window is being {} because it is being covered by another window that has been maximized.", if s == 1 {"shown"} else {"hidden"});
+            }
+            (s, p) if p == SW_PARENTOPENING.0 as isize => {
+                log::trace!("Window is being {} because its owner window is being restored.", if s == 1 {"shown"} else {"hidden"});
+            }
+            (s, p) if p == SW_OTHERUNZOOM.0 as isize => {
+                log::trace!("Window is being {} because a maximize window was restored or minimized.", if s == 1 {"shown"} else {"hidden"});
+            }
+            (s, p) => {
+                log::trace!("Window is being {} because of reason #{}.", if s == 1 {"shown"} else {"hidden"}, p);
+            }
         }
     }
-    // log::trace!("wm_showwindow: wParam: {}, lParam: {}", wParam.0, lParam.0);
 }
 
 fn wm_windowposchanging(hwnd: HWND, lParam: LPARAM) -> Result<WINDOWPOS> {
@@ -1236,5 +1325,57 @@ fn wm_ime_setcontext(hwnd: HWND, wParam: WPARAM, lParam: LPARAM) {
     }
 }
 
+fn wm_ime_notify(hwnd: HWND, wParam: WPARAM, lParam: LPARAM) {
+    if wParam.0 == IMN_CHANGECANDIDATE as usize {
+        log::trace!("IME is notifying of candidate change.");
+    }
+    if wParam.0 == IMN_CLOSECANDIDATE as usize {
+        log::trace!("IME is notifying of candidate window closing.");
+    }
+    if wParam.0 == IMN_CLOSESTATUSWINDOW as usize {
+        log::trace!("IME is closing the status window.");
+    }
+    if wParam.0 == IMN_GUIDELINE as usize {
+        log::trace!("IME is notifying of guideline.");
+    }
+    if wParam.0 == IMN_OPENCANDIDATE as usize {
+        log::trace!("IME is opening the candidate window.");
+    }
+    if wParam.0 == IMN_OPENSTATUSWINDOW as usize {
+        log::trace!("IME is opening the status window.");
+    }
+    if wParam.0 == IMN_SETCANDIDATEPOS as usize {
+        log::trace!("IME is setting candidate position.");
+    }
+    if wParam.0 == IMN_SETCOMPOSITIONFONT as usize {
+        log::trace!("IME is setting composition font.");
+    }
+    if wParam.0 == IMN_SETCOMPOSITIONWINDOW as usize {
+        log::trace!("IME is setting composition window.");
+    }
+    if wParam.0 == IMN_SETCONVERSIONMODE as usize {
+        log::trace!("IME is setting conversion mode.");
+    }
+    if wParam.0 == IMN_SETOPENSTATUS as usize {
+        log::trace!("IME is setting open status.");
+    }
+    if wParam.0 == IMN_SETSENTENCEMODE as usize {
+        log::trace!("IME is setting sentence mode.");
+    }
+    if wParam.0 == IMN_SETSTATUSWINDOWPOS as usize {
+        log::trace!("IME is setting status window position.");
+    }
+    if lParam.0 != 0 {
+        log::trace!("IME notify event params (wParam: {:?} lParam: {:?})", wParam, lParam);
+    }
+}
+
+fn wm_sizing(msg: u32, hwnd: HWND, wParam: WPARAM, lParam: LPARAM) {
+    log::trace!("wm_sizing: 0x{:x} ({}) wParam: {}, lParam: {}", msg, msg, wParam.0, lParam.0);
+}
+
+fn wm_ncpaint(hwnd: HWND, wParam: WPARAM, lParam: LPARAM) {
+    log::trace!("wm_ncpaint: wParam: {}, lParam: {}", wParam.0, lParam.0);
+}
 
 //
