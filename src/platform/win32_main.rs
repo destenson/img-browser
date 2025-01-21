@@ -5,7 +5,8 @@ use windows::{
     core::*, Data::Xml::Dom::*,
     Win32::{
         Foundation::*, Graphics::Gdi::*,
-        System::{LibraryLoader::*, Threading::*}, UI::{Controls::*, HiDpi::*, WindowsAndMessaging::*}
+        System::{LibraryLoader::*, Threading::*},
+        UI::{Controls::*, HiDpi::*, Input::Ime::*, WindowsAndMessaging::*}
     },
 };
 
@@ -267,7 +268,7 @@ pub fn main() -> Result<()> {
                 // continue;
             },
 
-            WM_ACTIVATE => println!("WM_ACTIVATE"),
+            WM_ACTIVATE => println!("WM_ACTIVATE: {} {:?}", msg.time, msg),
             WM_ACTIVATEAPP => println!("WM_ACTIVATEAPP"),
             WM_AFXFIRST => println!("WM_AFXFIRST"),
             WM_AFXLAST => println!("WM_AFXLAST"),
@@ -687,10 +688,7 @@ unsafe extern "system" fn window_proc(
             DestroyWindow(hwnd).expect("DestroyWindow failed");
             return LRESULT(0);
         }
-        WM_ACTIVATE => {
-            print_msg("WM_ACTIVATE");
-            // println!("wParam: {:?}, lParam: {:?}", wParam, lParam);
-        },
+
         WM_GETMINMAXINFO => {
             match wm_getminmaxinfo(hwnd, lParam) {
                 Ok(_) => print_msg("WM_GETMINMAXINFO"),
@@ -710,15 +708,53 @@ unsafe extern "system" fn window_proc(
             print_msg("WM_NCCALCSIZE");
             wm_nccalcsize(hwnd, lParam);
         }
+        WM_CREATE => {
+            print_msg("WM_CREATE");
+            wm_create(hwnd, lParam);
+        }
+        WM_SHOWWINDOW => {
+            print_msg("WM_SHOWWINDOW");
+            wm_showwindow(hwnd, wParam, lParam);
+        }
+        WM_WINDOWPOSCHANGING => {
+            print_msg("WM_WINDOWPOSCHANGING");
+            wm_windowposchanging(hwnd, lParam);
+        }
+        WM_ACTIVATEAPP => {
+            print_msg("WM_ACTIVATEAPP");
+            wm_activateapp(hwnd, wParam, lParam);
+            // println!("wParam: {:?}, lParam: {:?}", wParam, lParam);
+        },
+        WM_NCACTIVATE => {
+            print_msg("WM_NCACTIVATE");
+            // wm_ncactivate(hwnd, wParam, lParam);
+        }
+        WM_GETICON => {
+            print_msg("WM_GETICON");
+            wm_geticon(hwnd, wParam, lParam);
+        }
+        WM_ACTIVATE => {
+            print_msg("WM_ACTIVATE");
+            wm_activate(hwnd, wParam, lParam);
+            // println!("wParam: {:?}, lParam: {:?}", wParam, lParam);
+        }
+        WM_IME_SETCONTEXT => {
+            print_msg("WM_IME_SETCONTEXT");
+            wm_ime_setcontext(hwnd, wParam, lParam);
+        }
+        WM_IME_NOTIFY => {
+            print_msg("WM_IME_NOTIFY");
+            // wm_ime_notify(hwnd, wParam, lParam);
+            println!("\n\n\t\t\tlatest");
+        }
 
 
-
-        WM_ACTIVATE => println!("WM_ACTIVATE"),
-        WM_ACTIVATEAPP => println!("WM_ACTIVATEAPP"),
-        WM_AFXFIRST => println!("WM_AFXFIRST"),
-        WM_AFXLAST => println!("WM_AFXLAST"),
-        WM_APP => println!("WM_APP"),
-        WM_APPCOMMAND => println!("WM_APPCOMMAND"),
+        // WM_ACTIVATE => println!("WM_ACTIVATE"),
+        // WM_ACTIVATEAPP => println!("WM_ACTIVATEAPP"),
+        // WM_AFXFIRST => println!("WM_AFXFIRST"),
+        // WM_AFXLAST => println!("WM_AFXLAST"),
+        // WM_APP => println!("WM_APP"),
+        // WM_APPCOMMAND => println!("WM_APPCOMMAND"),
         // WM_ASKCBFORMATNAME => println!(""),
         // WM_CANCELJOURNAL => println!(""),
         // WM_CANCELMODE => println!(""),
@@ -969,9 +1005,10 @@ unsafe extern "system" fn window_proc(
         // WM_XBUTTONDOWN => println!(""),
         // WM_XBUTTONUP => println!(""),
         _ => {
-            println!("[{:x?}] 0x{:04x}, {}, {}", hwnd.0, msg, wParam.0, lParam.0);
-            // println!("Message {:?} received", msg);
-            return DefWindowProcW(hwnd, msg, wParam, lParam);
+            print_msg("");
+            // // println!("[{:x?}] 0x{:04x}, {}, {}", hwnd.0, msg, wParam.0, lParam.0);
+            // // println!("Message {:?} received", msg);
+            // return DefWindowProcW(hwnd, msg, wParam, lParam);
         },
     }
     return DefWindowProcW(hwnd, msg, wParam, lParam);
@@ -1010,7 +1047,7 @@ fn wm_getminmaxinfo(hwnd: HWND, lParam: LPARAM) -> Result<MINMAXINFO> {
         return Err(Error::new(unsafe{GetLastError().into()}, "lParam is null"));
     }
     let minmaxinfo = unsafe { &mut *(lParam.0 as *mut MINMAXINFO) }.clone();
-    // log::trace!("wm_getminmaxinfo: {:?}", minmaxinfo);
+    log::trace!("wm_getminmaxinfo: {:?}", minmaxinfo);
 
     Ok(minmaxinfo)
 }
@@ -1032,14 +1069,14 @@ fn wm_nccreate(hwnd: HWND, lParam: LPARAM) -> Result<CREATESTRUCTW> {
     let style = WINDOW_STYLE(cs.style as u32);
     log::trace!("style     : {:?}", style);
     log::trace!("style (x) : {:?}", cs.dwExStyle);
-    // let name = unsafe{cs.lpszName.display()}.to_string();
-    // // let name = cs.lpszName;
-    // // let name = if name.is_null() {
-    // //     "null".to_string()
-    // // } else {
-    // //     unsafe { String::from_utf16_lossy(std::slice::from_raw_parts(name.0, 256)) }
-    // // };
-    // log::trace!("name      : {}", name);
+    let name = unsafe{cs.lpszName.display()}.to_string();
+    // let name = cs.lpszName;
+    // let name = if name.is_null() {
+    //     "null".to_string()
+    // } else {
+    //     unsafe { String::from_utf16_lossy(std::slice::from_raw_parts(name.0, 256)) }
+    // };
+    log::trace!("name      : {}", name);
     // let class = unsafe{cs.lpszClass.display()}.to_string();
     // // let class = cs.lpszClass;
     // // let class = if class.is_null() {
@@ -1060,6 +1097,143 @@ fn wm_nccalcsize(hwnd: HWND, lParam: LPARAM) -> Result<RECT> {
     let rect = unsafe { &mut *(lParam.0 as *mut RECT) }.clone();
     log::trace!("wm_nccalcsize: {:?}", rect);
     Ok(rect)
+}
+
+fn wm_create(hwnd: HWND, lParam: LPARAM) -> Result<CREATESTRUCTW> {
+    if lParam == LPARAM(0) {
+        log::trace!("lParam is null");
+        return Err(Error::new(unsafe{GetLastError().into()}, "lParam is null"));
+    }
+    let cs = unsafe { &mut *(lParam.0 as *mut CREATESTRUCTW) }.clone();
+    log::trace!("wm_create: {:?}", cs);
+    if cs.hwndParent.is_invalid() {
+        log::trace!("Creating root window");
+    }
+    log::trace!("location  : {} x {}", cs.x, cs.y);
+    log::trace!("dimensions: {} x {}", cs.cx, cs.cy);
+    // log::trace!("style     : 0x{:x}", createstruct.style);
+    let style = WINDOW_STYLE(cs.style as u32);
+    log::trace!("style     : {:?}", style);
+    log::trace!("style (x) : {:?}", cs.dwExStyle);
+    let name = unsafe{cs.lpszName.display()}.to_string();
+    log::trace!("name      : {}", name);
+    // let class = unsafe{cs.lpszClass.display()}.to_string();
+    // // let class = cs.lpszClass;
+    // // let class = if class.is_null() {
+    // //     "null".to_string()
+    // // } else {
+    // //     unsafe { String::from_utf16_lossy(std::slice::from_raw_parts(class.0, 256)) }
+    // // };
+    // log::trace!("class     : {}", class);
+
+    Ok(cs)
+}
+
+
+fn wm_showwindow(hwnd: HWND, wParam: WPARAM, lParam: LPARAM) {
+    match (wParam.0, lParam.0) {
+        (1, 0) => {
+            log::trace!("Window is being shown due to a call to ShowWindow");
+        },
+        (0, 0) => {
+            log::trace!("Window is being hidden due to a call to ShowWindow");
+        },
+        (s, p) if p == SW_PARENTCLOSING.0 as isize => {
+            log::trace!("Window is being {} because its owner window is being minimized.", if s == 1 {"shown"} else {"hidden"});
+        }
+        (s, p) if p == SW_OTHERZOOM.0 as isize => {
+            log::trace!("Window is being {} because it is being covered by another window that has been maximized.", if s == 1 {"shown"} else {"hidden"});
+        }
+        (s, p) if p == SW_PARENTOPENING.0 as isize => {
+            log::trace!("Window is being {} because its owner window is being restored.", if s == 1 {"shown"} else {"hidden"});
+        }
+        (s, p) if p == SW_OTHERUNZOOM.0 as isize => {
+            log::trace!("Window is being {} because a maximize window was restored or minimized.", if s == 1 {"shown"} else {"hidden"});
+        }
+        (s, p) => {
+            log::trace!("Window is being {} because of reason #{}.", if s == 1 {"shown"} else {"hidden"}, p);
+        }
+    }
+    // log::trace!("wm_showwindow: wParam: {}, lParam: {}", wParam.0, lParam.0);
+}
+
+fn wm_windowposchanging(hwnd: HWND, lParam: LPARAM) -> Result<WINDOWPOS> {
+    if lParam == LPARAM(0) {
+        log::trace!("lParam is null");
+        return Err(Error::new(unsafe{GetLastError().into()}, "lParam is null"));
+    }
+    let wp = unsafe { &mut *(lParam.0 as *mut WINDOWPOS) }.clone();
+    log::trace!("wm_windowposchanging: {:?}", wp);
+    log::trace!("location  : {} x {}", wp.x, wp.y);
+    log::trace!("dimensions: {} x {}", wp.cx, wp.cy);
+    log::trace!("flags     : 0x{:x}", wp.flags.0);
+    Ok(wp)
+}
+
+fn wm_activate(hwnd: HWND, wParam: WPARAM, lParam: LPARAM) {
+    if wParam.0 == WA_ACTIVE as usize {
+        log::trace!("Window is being activated (owning thread: [0x{:x}])", lParam.0);
+    } else if wParam.0 == WA_CLICKACTIVE as usize {
+        log::trace!("Window is being activated by a mouse click (owning thread: [0x{:x}])", lParam.0);
+    } else if wParam.0 == WA_INACTIVE as usize {
+        log::trace!("Window is being deactivated (owning thread: [0x{:x}])", lParam.0);
+    }
+}
+fn wm_activateapp(hwnd: HWND, wParam: WPARAM, lParam: LPARAM) {
+    if wParam.0 == WA_ACTIVE as usize {
+        log::trace!("App is being activated (owning thread: [0x{:x}])", lParam.0);
+    } else if wParam.0 == WA_CLICKACTIVE as usize {
+        log::trace!("App is being activated by a mouse click (owning thread: [0x{:x}])", lParam.0);
+    } else if wParam.0 == WA_INACTIVE as usize {
+        log::trace!("App is being deactivated (owning thread: [0x{:x}])", lParam.0);
+    }
+}
+
+fn wm_geticon(hwnd: HWND, wParam: WPARAM, lParam: LPARAM) {
+    if wParam.0 == ICON_SMALL as usize {
+        log::trace!("Message requesting small icon ({} dpi)", lParam.0);
+    } else if wParam.0 == ICON_BIG as usize {
+        log::trace!("Message requesting big icon ({} dpi)", lParam.0);
+    } else if wParam.0 == ICON_SMALL2 as usize {
+        log::trace!("Message requesting small icon 2 ({} dpi)", lParam.0);
+    } else {
+        log::trace!("Message requesting icon of unknown size (wParam: {:?} lParam: {:?})", wParam, lParam);
+    }
+}
+
+fn wm_ime_setcontext(hwnd: HWND, wParam: WPARAM, lParam: LPARAM) {
+    if wParam.0 == 1 {
+        log::trace!("IME is being set to active");
+    } else if wParam.0 == 0 {
+        log::trace!("IME is being set to inactive");
+    } else {
+        log::trace!("IME is being set to unknown state (wParam: {:?} lParam: {:?})", wParam, lParam);
+    }
+
+    if lParam.0 == ISC_SHOWUIALL as isize {
+        log::trace!("IME is being set to show all UI.");
+        // dbg!(lParam.0, ISC_SHOWUIALL as isize);
+    } else {
+        // if (lParam.0 & (ISC_SHOWUIALLCANDIDATEWINDOW as isize)) == ISC_SHOWUIALLCANDIDATEWINDOW as isize {
+        //     log::trace!("IME is being set to show all candidate window.");
+        //     dbg!(lParam.0, ISC_SHOWUIALLCANDIDATEWINDOW as isize);
+        // }
+        for i in 0..4 as usize {
+            if (lParam.0 & ((ISC_SHOWUICANDIDATEWINDOW<<i) as isize)) == (ISC_SHOWUICANDIDATEWINDOW as isize) {
+                log::trace!("IME is being set to show candidate window {}.", i);
+                dbg!(lParam.0, (ISC_SHOWUICANDIDATEWINDOW<<i) as isize);
+            }
+        }
+
+    }
+    if (lParam.0 & (ISC_SHOWUICOMPOSITIONWINDOW as isize)) == ISC_SHOWUICOMPOSITIONWINDOW as isize {
+        log::trace!("IME is being set to show composition window. (Show the composition window by user interface window.)");
+        // dbg!(lParam.0, ISC_SHOWUICOMPOSITIONWINDOW as isize);
+    }
+    if (lParam.0 & (ISC_SHOWUIGUIDELINE as isize)) == ISC_SHOWUIGUIDELINE as isize {
+        log::trace!("IME is being set to show guide line. (Show the guide window by user interface window.)");
+        // dbg!(lParam.0, ISC_SHOWUIGUIDELINE as isize);
+    }
 }
 
 
