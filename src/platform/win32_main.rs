@@ -1,5 +1,5 @@
 #![allow(non_snake_case, unused)]
-use std::{borrow::Borrow, ffi::c_void, io::Read, ops::BitAnd, sync::{Arc, Mutex}};
+use std::{borrow::Borrow, ffi::c_void, io::Read, mem::ManuallyDrop, ops::BitAnd, sync::{Arc, Mutex}};
 
 use windows::{
     core::*, Data::Xml::Dom::*,
@@ -57,27 +57,27 @@ struct DbgOpts {
 }
 
 const DBG_OPTS: DbgOpts = DbgOpts{
-    show_wm_getminmaxinfo: false,
-    show_wm_nccreate: false,
-    show_wm_nccalcsize: false,
-    show_wm_create: false,
-    show_wm_showwindow: false,
-    show_wm_windowposchanging: false,
-    show_wm_activateapp: false,
-    show_wm_ncactivate: false,
-    show_wm_geticon: false,
-    show_wm_activate: false,
-    show_wm_ime_setcontext: false,
-    show_wm_ime_notify: false,
-    show_wmsz_bottomleft: false,
-    show_wm_ncpaint: false,
-    show_wm_erasebkgnd: false,
+    show_wm_getminmaxinfo: true,//false,
+    show_wm_nccreate: true,//false,
+    show_wm_nccalcsize: true,//false,
+    show_wm_create: true,//false,
+    show_wm_showwindow: true,//false,
+    show_wm_windowposchanging: true,//false,
+    show_wm_activateapp: true,//false,
+    show_wm_ncactivate: true,//false,
+    show_wm_geticon: true,//false,
+    show_wm_activate: true,//false,
+    show_wm_ime_setcontext: true,//false,
+    show_wm_ime_notify: true,//false,
+    show_wmsz_bottomleft: true,//false,
+    show_wm_ncpaint: true,//false,
+    show_wm_erasebkgnd: true,//false,
     show_wm_chartoitem: true,
-    show_wm_windowposchanged: false,
-    show_wmsz_topright: false,
-    show_wmsz_top: false,
-    show_dwmncrenderingchanged: false,
-    show_wm_paint: false,
+    show_wm_windowposchanged: true,//false,
+    show_wmsz_topright: true,//false,
+    show_wmsz_top: true,//false,
+    show_dwmncrenderingchanged: true,//false,
+    show_wm_paint: true,//false,
     show_wm_nchittest: true,
 
     image_path: "vendor/oculante/res/screenshot_exif.png",
@@ -89,8 +89,10 @@ const image_path: &str = DBG_OPTS.image_path;
 pub fn main() -> Result<()> {
     use WndProc;
 
-    unsafe {SetProcessDpiAwareness(PROCESS_PER_MONITOR_DPI_AWARE)}.expect("Failed to set process DPI awareness");
-    let handle_instance = unsafe {GetModuleHandleW(None)}.expect("Failed to get module handle");
+    unsafe {SetProcessDpiAwareness(PROCESS_PER_MONITOR_DPI_AWARE)}
+        .expect("Failed to set process DPI awareness");
+    let handle_instance = unsafe {GetModuleHandleW(None)}
+        .expect("Failed to get module handle");
 
     let wc = WNDCLASSEXW {
         cbSize: std::mem::size_of::<WNDCLASSEXW>() as u32,
@@ -100,6 +102,7 @@ pub fn main() -> Result<()> {
         // hCursor: None,
         // hbrBackground: None,
         lpszClassName: w!("img-browser-rs"),
+        cbWndExtra: 0,
         ..Default::default()
     };
 
@@ -113,7 +116,7 @@ pub fn main() -> Result<()> {
     };
 
     let (image_bmp, width, height) = load_image_as_bitmap(image_path);
-    println!("Image dimensions: {}x{}", width, height);
+    log::debug!("Image dimensions: {}x{}", width, height);
 
     let dwexstyle = WS_EX_TOPMOST
         | WS_EX_WINDOWEDGE
@@ -177,14 +180,14 @@ pub fn main() -> Result<()> {
         match msg.message {
             WM_QUIT | WM_CLOSE => {
                 if msg.message == WM_QUIT {
-                    println!("WM_QUIT");
+                    log::info!("WM_QUIT");
                 } else {
-                    println!("WM_CLOSE");
+                    log::info!("WM_CLOSE");
                 }
                 break;
             },
             WM_CREATE => {
-                println!("WM_CREATE");
+                log::info!("WM_CREATE");
 
                 // // a. create a device context for the window
                 // let hdc = unsafe { GetDC(window) };
@@ -205,8 +208,8 @@ pub fn main() -> Result<()> {
                 }
             },
             WM_PAINT => {
-                print!("{:03} WM_PAINT ", ctr_base-ctr);
-                println!("{} {:?} {:?} {:?}", msg.time, msg.pt, msg.lParam, msg.wParam);
+                log::info!("{:03} WM_PAINT {} {:?} {:?} {:?}",
+                    ctr_base-ctr, msg.time, msg.pt, msg.lParam, msg.wParam);
                 let mut ps: PAINTSTRUCT = unsafe{std::mem::zeroed()};
                 let hdc = unsafe{BeginPaint(window, &mut ps)};
                 
@@ -219,18 +222,18 @@ pub fn main() -> Result<()> {
                         BitBlt(hdc, 0, 0, width, height, hdc_mem, 0, 0, SRCCOPY)
                     };
                     if bres.is_err() {
-                        println!("BitBlt failed: {}", unsafe{GetLastError()}.0);
+                        log::info!("BitBlt failed: {}", unsafe{GetLastError()}.0);
                     }
                     // dbg!(bres);
     
                     unsafe{SelectObject(hdc_mem, prev_bmp)};
     
                     unsafe{DeleteDC(hdc_mem)}.expect("DeleteDC failed");
-                    // println!("DeleteDC called");
+                    // log::info!("DeleteDC called");
                 }
     
                 unsafe{EndPaint(window, &ps)}.expect("EndPaint failed");
-                // println!("EndPaint called");
+                // log::info!("EndPaint called");
 
                 // // TODO: do we continue, or fall through here?
                 // return LRESULT(0);
@@ -238,8 +241,8 @@ pub fn main() -> Result<()> {
             },
     
             WM_TIMER => {
-                print!("{:03} WM_TIMER ", ctr_base-ctr);
-                println!("{} {:?} {:?} {:?}", msg.time, msg.pt, msg.lParam, msg.wParam);
+                log::info!("{:03} WM_TIMER {} {:?} {:?} {:?}",
+                    ctr_base-ctr, msg.time, msg.pt, msg.lParam, msg.wParam);
                 // dbg!(msg);
                 // continue;
             },
@@ -254,385 +257,385 @@ pub fn main() -> Result<()> {
                 unsafe { PostQuitMessage(0) };
                 // continue;
             },
-            WM_CANCELMODE => println!("WM_CANCELMODE"),
-            WM_CHANGECBCHAIN => println!("WM_CHANGECBCHAIN"),
-            WM_CAPTURECHANGED => println!("WM_CAPTURECHANGED"),
-            WM_CHAR => println!("WM_CHAR"),
-            WM_COMMAND => println!("WM_COMMAND"),
-            WM_CTLCOLORBTN => println!("WM_CTLCOLORBTN"),
-            WM_CTLCOLORDLG => println!("WM_CTLCOLORDLG"),
-            WM_CTLCOLOREDIT => println!("WM_CTLCOLOREDIT"),
-            WM_CTLCOLORLISTBOX => println!("WM_CTLCOLORLISTBOX"),
-            WM_CTLCOLORMSGBOX => println!("WM_CTLCOLORMSGBOX"),
-            WM_CTLCOLORSCROLLBAR => println!("WM_CTLCOLORSCROLLBAR"),
-            WM_CTLCOLORSTATIC => println!("WM_CTLCOLORSTATIC"),
-            WM_DEVICECHANGE => println!("WM_DEVICECHANGE"),
-            WM_DISPLAYCHANGE => println!("WM_DISPLAYCHANGE"),
-            WM_DRAWCLIPBOARD => println!("WM_DRAWCLIPBOARD"),
-            WM_DRAWITEM => println!("WM_DRAWITEM"),
-            WM_ERASEBKGND => println!("WM_ERASEBKGND"),
-            WM_GETMINMAXINFO => println!("WM_GETMINMAXINFO"),
-            WM_INPUT => println!("WM_INPUT"),
-            WM_KEYDOWN => println!("WM_KEYDOWN"),
-            WM_KEYLAST => println!("WM_KEYLAST"),
-            WM_KEYUP => println!("WM_KEYUP"),
-            WM_LBUTTONDOWN => println!("WM_LBUTTONDOWN"),
-            WM_LBUTTONUP => println!("WM_LBUTTONUP"),
-            WM_MOUSEMOVE => println!("WM_MOUSEMOVE"),
-            WM_RBUTTONDOWN => println!("WM_RBUTTONDOWN"),
-            WM_RBUTTONUP => println!("WM_RBUTTONUP"),
-            WM_SIZE => println!("WM_SIZE"),
-            WM_SYSKEYDOWN => println!("WM_SYSKEYDOWN"),
-            WM_SYSKEYUP => println!("WM_SYSKEYUP"),
-            WM_SYSCHAR => println!("WM_SYSCHAR"),
-            WM_SYSDEADCHAR => println!("WM_SYSDEADCHAR"),
-            WM_USER => println!("WM_USER"),
-            WM_XBUTTONDOWN => println!("WM_XBUTTONDOWN"),
-            WM_XBUTTONUP => println!("WM_XBUTTONUP"),
-            WM_MOUSEHOVER => println!("WM_MOUSEHOVER"),
-            WM_MOUSELEAVE => println!("WM_MOUSELEAVE"),
-            WM_NCACTIVATE => println!("WM_NCACTIVATE"),
-            WM_NCCALCSIZE => println!("WM_NCCALCSIZE"),
-            WM_NCHITTEST => println!("WM_NCHITTEST"),
-            WM_NCLBUTTONDBLCLK => println!("WM_NCLBUTTONDBLCLK"),
-            WM_NCLBUTTONDOWN => println!("WM_NCLBUTTONDOWN"),
-            WM_NCLBUTTONUP => println!("WM_NCLBUTTONUP"),
-            WM_NCMBUTTONDBLCLK => println!("WM_NCMBUTTONDBLCLK"),
-            WM_NCMBUTTONDOWN => println!("WM_NCMBUTTONDOWN"),
-            WM_NCMBUTTONUP => println!("WM_NCMBUTTONUP"),
-            WM_NCMOUSEHOVER => println!("WM_NCMOUSEHOVER"),
-            WM_NCMOUSELEAVE => println!("WM_NCMOUSELEAVE"),
+            WM_CANCELMODE => log::info!("WM_CANCELMODE"),
+            WM_CHANGECBCHAIN => log::info!("WM_CHANGECBCHAIN"),
+            WM_CAPTURECHANGED => log::info!("WM_CAPTURECHANGED"),
+            WM_CHAR => log::info!("WM_CHAR"),
+            WM_COMMAND => log::info!("WM_COMMAND"),
+            WM_CTLCOLORBTN => log::info!("WM_CTLCOLORBTN"),
+            WM_CTLCOLORDLG => log::info!("WM_CTLCOLORDLG"),
+            WM_CTLCOLOREDIT => log::info!("WM_CTLCOLOREDIT"),
+            WM_CTLCOLORLISTBOX => log::info!("WM_CTLCOLORLISTBOX"),
+            WM_CTLCOLORMSGBOX => log::info!("WM_CTLCOLORMSGBOX"),
+            WM_CTLCOLORSCROLLBAR => log::info!("WM_CTLCOLORSCROLLBAR"),
+            WM_CTLCOLORSTATIC => log::info!("WM_CTLCOLORSTATIC"),
+            WM_DEVICECHANGE => log::info!("WM_DEVICECHANGE"),
+            WM_DISPLAYCHANGE => log::info!("WM_DISPLAYCHANGE"),
+            WM_DRAWCLIPBOARD => log::info!("WM_DRAWCLIPBOARD"),
+            WM_DRAWITEM => log::info!("WM_DRAWITEM"),
+            WM_ERASEBKGND => log::info!("WM_ERASEBKGND"),
+            WM_GETMINMAXINFO => log::info!("WM_GETMINMAXINFO"),
+            WM_INPUT => log::info!("WM_INPUT"),
+            WM_KEYDOWN => log::info!("WM_KEYDOWN"),
+            WM_KEYLAST => log::info!("WM_KEYLAST"),
+            WM_KEYUP => log::info!("WM_KEYUP"),
+            WM_LBUTTONDOWN => log::info!("WM_LBUTTONDOWN"),
+            WM_LBUTTONUP => log::info!("WM_LBUTTONUP"),
+            WM_MOUSEMOVE => log::info!("WM_MOUSEMOVE"),
+            WM_RBUTTONDOWN => log::info!("WM_RBUTTONDOWN"),
+            WM_RBUTTONUP => log::info!("WM_RBUTTONUP"),
+            WM_SIZE => log::info!("WM_SIZE"),
+            WM_SYSKEYDOWN => log::info!("WM_SYSKEYDOWN"),
+            WM_SYSKEYUP => log::info!("WM_SYSKEYUP"),
+            WM_SYSCHAR => log::info!("WM_SYSCHAR"),
+            WM_SYSDEADCHAR => log::info!("WM_SYSDEADCHAR"),
+            WM_USER => log::info!("WM_USER"),
+            WM_XBUTTONDOWN => log::info!("WM_XBUTTONDOWN"),
+            WM_XBUTTONUP => log::info!("WM_XBUTTONUP"),
+            WM_MOUSEHOVER => log::info!("WM_MOUSEHOVER"),
+            WM_MOUSELEAVE => log::info!("WM_MOUSELEAVE"),
+            WM_NCACTIVATE => log::info!("WM_NCACTIVATE"),
+            WM_NCCALCSIZE => log::info!("WM_NCCALCSIZE"),
+            WM_NCHITTEST => log::info!("WM_NCHITTEST"),
+            WM_NCLBUTTONDBLCLK => log::info!("WM_NCLBUTTONDBLCLK"),
+            WM_NCLBUTTONDOWN => log::info!("WM_NCLBUTTONDOWN"),
+            WM_NCLBUTTONUP => log::info!("WM_NCLBUTTONUP"),
+            WM_NCMBUTTONDBLCLK => log::info!("WM_NCMBUTTONDBLCLK"),
+            WM_NCMBUTTONDOWN => log::info!("WM_NCMBUTTONDOWN"),
+            WM_NCMBUTTONUP => log::info!("WM_NCMBUTTONUP"),
+            WM_NCMOUSEHOVER => log::info!("WM_NCMOUSEHOVER"),
+            WM_NCMOUSELEAVE => log::info!("WM_NCMOUSELEAVE"),
             WM_NCMOUSEMOVE => { // this seeems to be the one that triggers when the mouse moves over the window
-                print!("{:03} WM_NCMOUSEMOVE ", ctr_base-ctr);
-                println!("{} {:?} {:?} {:?}", msg.time, msg.pt, msg.lParam, msg.wParam);
+                log::info!("{:03} WM_NCMOUSEMOVE {} {:?} {:?} {:?}",
+                    ctr_base-ctr, msg.time, msg.pt, msg.lParam, msg.wParam);
             },
-            WM_NCPAINT => println!("WM_NCPAINT"),
-            WM_NCRBUTTONDBLCLK => println!("WM_NCRBUTTONDBLCLK"),
-            WM_NCRBUTTONDOWN => println!("WM_NCRBUTTONDOWN"),
-            WM_NCRBUTTONUP => println!("WM_NCRBUTTONUP"),
-            WM_NCXBUTTONDOWN => println!("WM_NCXBUTTONDOWN"),
-            WM_NCXBUTTONUP => println!("WM_NCXBUTTONUP"),
-            WM_NCXBUTTONDBLCLK => println!("WM_NCXBUTTONDBLCLK"),
-            WM_PAINTICON => println!("WM_PAINTICON"),
-            WM_SETCURSOR => println!("WM_SETCURSOR"),
-            WM_SETFOCUS => println!("WM_SETFOCUS"),
-            WM_SETICON => println!("WM_SETICON"),
-            WM_SETTEXT => println!("WM_SETTEXT"),
-            WM_SHOWWINDOW => println!("WM_SHOWWINDOW"),
-            WM_SYSCOMMAND => println!("WM_SYSCOMMAND"),
-            WM_THEMECHANGED => println!("WM_THEMECHANGED"),
-            WM_WINDOWPOSCHANGED => println!("WM_WINDOWPOSCHANGED"),
-            WM_WINDOWPOSCHANGING => println!("WM_WINDOWPOSCHANGING"),
-            WM_MOUSEWHEEL => println!("WM_MOUSEWHEEL"),
-            WM_MOUSEHWHEEL => println!("WM_MOUSEHWHEEL"),
-            WM_MOUSEACTIVATE => println!("WM_MOUSEACTIVATE"),
-            WM_INITDIALOG => println!("WM_INITDIALOG"),
+            WM_NCPAINT => log::info!("WM_NCPAINT"),
+            WM_NCRBUTTONDBLCLK => log::info!("WM_NCRBUTTONDBLCLK"),
+            WM_NCRBUTTONDOWN => log::info!("WM_NCRBUTTONDOWN"),
+            WM_NCRBUTTONUP => log::info!("WM_NCRBUTTONUP"),
+            WM_NCXBUTTONDOWN => log::info!("WM_NCXBUTTONDOWN"),
+            WM_NCXBUTTONUP => log::info!("WM_NCXBUTTONUP"),
+            WM_NCXBUTTONDBLCLK => log::info!("WM_NCXBUTTONDBLCLK"),
+            WM_PAINTICON => log::info!("WM_PAINTICON"),
+            WM_SETCURSOR => log::info!("WM_SETCURSOR"),
+            WM_SETFOCUS => log::info!("WM_SETFOCUS"),
+            WM_SETICON => log::info!("WM_SETICON"),
+            WM_SETTEXT => log::info!("WM_SETTEXT"),
+            WM_SHOWWINDOW => log::info!("WM_SHOWWINDOW"),
+            WM_SYSCOMMAND => log::info!("WM_SYSCOMMAND"),
+            WM_THEMECHANGED => log::info!("WM_THEMECHANGED"),
+            WM_WINDOWPOSCHANGED => log::info!("WM_WINDOWPOSCHANGED"),
+            WM_WINDOWPOSCHANGING => log::info!("WM_WINDOWPOSCHANGING"),
+            WM_MOUSEWHEEL => log::info!("WM_MOUSEWHEEL"),
+            WM_MOUSEHWHEEL => log::info!("WM_MOUSEHWHEEL"),
+            WM_MOUSEACTIVATE => log::info!("WM_MOUSEACTIVATE"),
+            WM_INITDIALOG => log::info!("WM_INITDIALOG"),
             WM_DWMNCRENDERINGCHANGED if msg.wParam == WPARAM(1) => {
-                print!("{:03} WM_DWMNCRENDERINGCHANGED: {} ", ctr_base-ctr, " on");
-                println!("{} {:?} {:?} {:?}", msg.time, msg.pt, msg.lParam, msg.wParam);
+                log::info!("{:03} WM_DWMNCRENDERINGCHANGED: {} {} {:?} {:?} {:?}",
+                    ctr_base-ctr, " on", msg.time, msg.pt, msg.lParam, msg.wParam);
                 // continue;
             },
             WM_DWMNCRENDERINGCHANGED if msg.wParam == WPARAM(0) => {
-                print!("{:03} WM_DWMNCRENDERINGCHANGED: {} ", ctr_base-ctr, "off");
-                println!("{} {:?} {:?} {:?}", msg.time, msg.pt, msg.lParam, msg.wParam);
+                log::info!("{:03} WM_DWMNCRENDERINGCHANGED: {} {} {:?} {:?} {:?}",
+                    ctr_base-ctr, "off", msg.time, msg.pt, msg.lParam, msg.wParam);
                 // continue;
             },
 
-            WM_ACTIVATE => println!("WM_ACTIVATE: {} {:?}", msg.time, msg),
-            WM_ACTIVATEAPP => println!("WM_ACTIVATEAPP"),
-            WM_AFXFIRST => println!("WM_AFXFIRST"),
-            WM_AFXLAST => println!("WM_AFXLAST"),
-            WM_APP => println!("WM_APP"),
-            WM_APPCOMMAND => println!("WM_APPCOMMAND"),
-            WM_ASKCBFORMATNAME => println!(""),
-            WM_CANCELJOURNAL => println!(""),
-            WM_CANCELMODE => println!(""),
-            WM_CAPTURECHANGED => println!(""),
-            WM_CHANGECBCHAIN => println!(""),
-            WM_CHANGEUISTATE => println!(""),
-            WM_CHAR => println!(""),
-            WM_CHARTOITEM => println!(""),
-            WM_CHILDACTIVATE => println!(""),
-            WM_CLEAR => println!(""),
-            WM_CLIPBOARDUPDATE => println!(""),
-            WM_CLOSE => println!(""),
-            WM_COMMAND => println!(""),
-            WM_COMMNOTIFY => println!(""),
-            WM_COMPACTING => println!(""),
-            WM_COMPAREITEM => println!(""),
-            WM_CONTEXTMENU => println!(""),
-            WM_COPY => println!(""),
-            WM_COPYDATA => println!(""),
-            WM_CREATE => println!(""),
-            WM_CTLCOLORBTN => println!(""),
-            WM_CTLCOLORDLG => println!(""),
-            WM_CTLCOLOREDIT => println!(""),
-            WM_CTLCOLORLISTBOX => println!(""),
-            WM_CTLCOLORMSGBOX => println!(""),
-            WM_CTLCOLORSCROLLBAR => println!(""),
-            WM_CTLCOLORSTATIC => println!(""),
-            WM_CUT => println!(""),
-            WM_DEADCHAR => println!(""),
-            WM_DELETEITEM => println!(""),
-            WM_DESTROY => println!(""),
-            WM_DESTROYCLIPBOARD => println!(""),
-            WM_DEVICECHANGE => println!(""),
-            WM_DEVMODECHANGE => println!(""),
-            WM_DISPLAYCHANGE => println!(""),
-            WM_DPICHANGED => println!(""),
-            WM_DPICHANGED_AFTERPARENT => println!(""),
-            WM_DPICHANGED_BEFOREPARENT => println!(""),
-            WM_DRAWCLIPBOARD => println!(""),
-            WM_DRAWITEM => println!(""),
-            WM_DROPFILES => println!(""),
-            WM_DWMCOLORIZATIONCOLORCHANGED => println!(""),
-            WM_DWMCOMPOSITIONCHANGED => println!(""),
-            WM_DWMNCRENDERINGCHANGED => println!(""),
-            WM_DWMSENDICONICLIVEPREVIEWBITMAP => println!(""),
-            WM_DWMSENDICONICTHUMBNAIL => println!(""),
-            WM_DWMWINDOWMAXIMIZEDCHANGE => println!(""),
-            WM_ENABLE => println!(""),
-            WM_ENDSESSION => println!(""),
-            WM_ENTERIDLE => println!(""),
-            WM_ENTERMENULOOP => println!(""),
-            WM_ENTERSIZEMOVE => println!(""),
-            WM_ERASEBKGND => println!(""),
-            WM_EXITMENULOOP => println!(""),
-            WM_EXITSIZEMOVE => println!(""),
-            WM_FONTCHANGE => println!(""),
-            WM_GESTURE => println!(""),
-            WM_GESTURENOTIFY => println!(""),
-            WM_GETDLGCODE => println!(""),
-            WM_GETDPISCALEDSIZE => println!(""),
-            WM_GETFONT => println!(""),
-            WM_GETHOTKEY => println!(""),
-            WM_GETICON => println!(""),
-            WM_GETMINMAXINFO => println!(""),
-            WM_GETOBJECT => println!(""),
-            WM_GETTEXT => println!(""),
-            WM_GETTEXTLENGTH => println!(""),
-            WM_GETTITLEBARINFOEX => println!(""),
-            WM_HANDHELDFIRST => println!(""),
-            WM_HANDHELDLAST => println!(""),
-            WM_HELP => println!(""),
-            WM_HOTKEY => println!(""),
-            WM_HSCROLL => println!(""),
-            WM_HSCROLLCLIPBOARD => println!(""),
-            WM_ICONERASEBKGND => println!(""),
-            WM_IME_CHAR => println!(""),
-            WM_IME_COMPOSITION => println!(""),
-            WM_IME_COMPOSITIONFULL => println!(""),
-            WM_IME_CONTROL => println!(""),
-            WM_IME_ENDCOMPOSITION => println!(""),
-            WM_IME_KEYDOWN => println!(""),
-            WM_IME_KEYLAST => println!(""),
-            WM_IME_KEYUP => println!(""),
-            WM_IME_NOTIFY => println!(""),
-            WM_IME_REQUEST => println!(""),
-            WM_IME_SELECT => println!(""),
-            WM_IME_SETCONTEXT => println!(""),
-            WM_IME_STARTCOMPOSITION => println!(""),
-            WM_INITDIALOG => println!(""),
-            WM_INITMENU => println!(""),
-            WM_INITMENUPOPUP => println!(""),
-            WM_INPUT => println!(""),
-            WM_INPUTLANGCHANGE => println!(""),
-            WM_INPUTLANGCHANGEREQUEST => println!(""),
-            WM_INPUT_DEVICE_CHANGE => println!(""),
-            WM_KEYDOWN => println!(""),
-            WM_KEYFIRST => println!(""),
-            WM_KEYLAST => println!(""),
-            WM_KEYUP => println!(""),
-            WM_KILLFOCUS => println!(""),
-            WM_LBUTTONDBLCLK => println!(""),
-            WM_LBUTTONDOWN => println!(""),
-            WM_LBUTTONUP => println!(""),
-            WM_MBUTTONDBLCLK => println!(""),
-            WM_MBUTTONDOWN => println!(""),
-            WM_MBUTTONUP => println!(""),
-            WM_MDIACTIVATE => println!(""),
-            WM_MDICASCADE => println!(""),
-            WM_MDICREATE => println!(""),
-            WM_MDIDESTROY => println!(""),
-            WM_MDIGETACTIVE => println!(""),
-            WM_MDIICONARRANGE => println!(""),
-            WM_MDIMAXIMIZE => println!(""),
-            WM_MDINEXT => println!(""),
-            WM_MDIREFRESHMENU => println!(""),
-            WM_MDIRESTORE => println!(""),
-            WM_MDISETMENU => println!(""),
-            WM_MDITILE => println!(""),
-            WM_MEASUREITEM => println!(""),
-            WM_MENUCHAR => println!(""),
-            WM_MENUCOMMAND => println!(""),
-            WM_MENUDRAG => println!(""),
-            WM_MENUGETOBJECT => println!(""),
-            WM_MENURBUTTONUP => println!(""),
-            WM_MENUSELECT => println!(""),
-            WM_MOUSEACTIVATE => println!(""),
-            WM_MOUSEFIRST => println!(""),
-            WM_MOUSEHWHEEL => println!(""),
-            WM_MOUSELAST => println!(""),
-            WM_MOUSEMOVE => println!(""),
-            WM_MOUSEWHEEL => println!(""),
-            WM_MOVE => println!(""),
-            WM_MOVING => println!(""),
-            WM_NCACTIVATE => println!(""),
-            WM_NCCALCSIZE => println!(""),
-            WM_NCCREATE => println!(""),
-            WM_NCDESTROY => println!(""),
-            WM_NCHITTEST => println!(""),
-            WM_NCLBUTTONDBLCLK => println!(""),
-            WM_NCLBUTTONDOWN => println!(""),
-            WM_NCLBUTTONUP => println!(""),
-            WM_NCMBUTTONDBLCLK => println!(""),
-            WM_NCMBUTTONDOWN => println!(""),
-            WM_NCMBUTTONUP => println!(""),
-            WM_NCMOUSEHOVER => println!(""),
-            WM_NCMOUSELEAVE => println!(""),
-            WM_NCMOUSEMOVE => println!(""),
-            WM_NCPAINT => println!(""),
-            WM_NCPOINTERDOWN => println!(""),
-            WM_NCPOINTERUP => println!(""),
-            WM_NCPOINTERUPDATE => println!(""),
-            WM_NCRBUTTONDBLCLK => println!(""),
-            WM_NCRBUTTONDOWN => println!(""),
-            WM_NCRBUTTONUP => println!(""),
-            WM_NCXBUTTONDBLCLK => println!(""),
-            WM_NCXBUTTONDOWN => println!(""),
-            WM_NCXBUTTONUP => println!(""),
-            WM_NEXTDLGCTL => println!(""),
-            WM_NEXTMENU => println!(""),
-            WM_NOTIFY => println!(""),
-            WM_NOTIFYFORMAT => println!(""),
-            WM_NULL => println!(""),
-            WM_PAINT => println!(""),
-            WM_PAINTCLIPBOARD => println!(""),
-            WM_PAINTICON => println!(""),
-            WM_PALETTECHANGED => println!(""),
-            WM_PALETTEISCHANGING => println!(""),
-            WM_PARENTNOTIFY => println!(""),
-            WM_PASTE => println!(""),
-            WM_PENWINFIRST => println!(""),
-            WM_PENWINLAST => println!(""),
-            WM_POINTERACTIVATE => println!(""),
-            WM_POINTERCAPTURECHANGED => println!(""),
-            WM_POINTERDEVICECHANGE => println!(""),
-            WM_POINTERDEVICEINRANGE => println!(""),
-            WM_POINTERDEVICEOUTOFRANGE => println!(""),
-            WM_POINTERDOWN => println!(""),
-            WM_POINTERENTER => println!(""),
-            WM_POINTERHWHEEL => println!(""),
-            WM_POINTERLEAVE => println!(""),
-            WM_POINTERROUTEDAWAY => println!(""),
-            WM_POINTERROUTEDRELEASED => println!(""),
-            WM_POINTERROUTEDTO => println!(""),
-            WM_POINTERUP => println!(""),
-            WM_POINTERUPDATE => println!(""),
-            WM_POINTERWHEEL => println!(""),
-            WM_POWER => println!(""),
-            WM_POWERBROADCAST => println!(""),
-            WM_PRINT => println!(""),
-            WM_PRINTCLIENT => println!(""),
-            WM_QUERYDRAGICON => println!(""),
-            WM_QUERYENDSESSION => println!(""),
-            WM_QUERYNEWPALETTE => println!(""),
-            WM_QUERYOPEN => println!(""),
-            WM_QUERYUISTATE => println!(""),
-            WM_QUEUESYNC => println!(""),
-            WM_QUIT => println!(""),
-            WM_RBUTTONDBLCLK => println!(""),
-            WM_RBUTTONDOWN => println!(""),
-            WM_RBUTTONUP => println!(""),
-            WM_RENDERALLFORMATS => println!(""),
-            WM_RENDERFORMAT => println!(""),
-            WM_SETCURSOR => println!(""),
-            WM_SETFOCUS => println!(""),
-            WM_SETFONT => println!(""),
-            WM_SETHOTKEY => println!(""),
-            WM_SETICON => println!(""),
-            WM_SETREDRAW => println!(""),
-            WM_SETTEXT => println!(""),
-            WM_SETTINGCHANGE => println!(""),
-            WM_SHOWWINDOW => println!(""),
-            WM_SIZE => println!(""),
-            WM_SIZECLIPBOARD => println!(""),
-            WM_SIZING => println!(""),
-            WM_SPOOLERSTATUS => println!(""),
-            WM_STYLECHANGED => println!(""),
-            WM_STYLECHANGING => println!(""),
-            WM_SYNCPAINT => println!(""),
-            WM_SYSCHAR => println!(""),
-            WM_SYSCOLORCHANGE => println!(""),
-            WM_SYSCOMMAND => println!(""),
-            WM_SYSDEADCHAR => println!(""),
-            WM_SYSKEYDOWN => println!(""),
-            WM_SYSKEYUP => println!(""),
-            WM_TABLET_FIRST => println!(""),
-            WM_TABLET_LAST => println!(""),
-            WM_TCARD => println!(""),
-            WM_THEMECHANGED => println!(""),
-            WM_TIMECHANGE => println!(""),
-            WM_TIMER => println!(""),
-            WM_TOOLTIPDISMISS => println!(""),
-            WM_TOUCH => println!(""),
-            WM_TOUCHHITTESTING => println!(""),
-            WM_UNDO => println!(""),
-            WM_UNICHAR => println!(""),
-            WM_UNINITMENUPOPUP => println!(""),
-            WM_UPDATEUISTATE => println!(""),
-            WM_USER => println!(""),
-            WM_USERCHANGED => println!(""),
-            WM_VKEYTOITEM => println!(""),
-            WM_VSCROLL => println!(""),
-            WM_VSCROLLCLIPBOARD => println!(""),
-            WM_WINDOWPOSCHANGED => println!(""),
-            WM_WINDOWPOSCHANGING => println!(""),
-            WM_WININICHANGE => println!(""),
-            WM_WTSSESSION_CHANGE => println!(""),
-            WM_XBUTTONDBLCLK => println!(""),
-            WM_XBUTTONDOWN => println!(""),
-            WM_XBUTTONUP => println!(""),
+            WM_ACTIVATE => log::info!("WM_ACTIVATE: {} {:?}", msg.time, msg),
+            WM_ACTIVATEAPP => log::info!("WM_ACTIVATEAPP"),
+            WM_AFXFIRST => log::info!("WM_AFXFIRST"),
+            WM_AFXLAST => log::info!("WM_AFXLAST"),
+            WM_APP => log::info!("WM_APP"),
+            WM_APPCOMMAND => log::info!("WM_APPCOMMAND"),
+            WM_ASKCBFORMATNAME => log::info!(""),
+            WM_CANCELJOURNAL => log::info!(""),
+            WM_CANCELMODE => log::info!(""),
+            WM_CAPTURECHANGED => log::info!(""),
+            WM_CHANGECBCHAIN => log::info!(""),
+            WM_CHANGEUISTATE => log::info!(""),
+            WM_CHAR => log::info!(""),
+            WM_CHARTOITEM => log::info!(""),
+            WM_CHILDACTIVATE => log::info!(""),
+            WM_CLEAR => log::info!(""),
+            WM_CLIPBOARDUPDATE => log::info!(""),
+            WM_CLOSE => log::info!(""),
+            WM_COMMAND => log::info!(""),
+            WM_COMMNOTIFY => log::info!(""),
+            WM_COMPACTING => log::info!(""),
+            WM_COMPAREITEM => log::info!(""),
+            WM_CONTEXTMENU => log::info!(""),
+            WM_COPY => log::info!(""),
+            WM_COPYDATA => log::info!(""),
+            WM_CREATE => log::info!(""),
+            WM_CTLCOLORBTN => log::info!(""),
+            WM_CTLCOLORDLG => log::info!(""),
+            WM_CTLCOLOREDIT => log::info!(""),
+            WM_CTLCOLORLISTBOX => log::info!(""),
+            WM_CTLCOLORMSGBOX => log::info!(""),
+            WM_CTLCOLORSCROLLBAR => log::info!(""),
+            WM_CTLCOLORSTATIC => log::info!(""),
+            WM_CUT => log::info!(""),
+            WM_DEADCHAR => log::info!(""),
+            WM_DELETEITEM => log::info!(""),
+            WM_DESTROY => log::info!(""),
+            WM_DESTROYCLIPBOARD => log::info!(""),
+            WM_DEVICECHANGE => log::info!(""),
+            WM_DEVMODECHANGE => log::info!(""),
+            WM_DISPLAYCHANGE => log::info!(""),
+            WM_DPICHANGED => log::info!(""),
+            WM_DPICHANGED_AFTERPARENT => log::info!(""),
+            WM_DPICHANGED_BEFOREPARENT => log::info!(""),
+            WM_DRAWCLIPBOARD => log::info!(""),
+            WM_DRAWITEM => log::info!(""),
+            WM_DROPFILES => log::info!(""),
+            WM_DWMCOLORIZATIONCOLORCHANGED => log::info!(""),
+            WM_DWMCOMPOSITIONCHANGED => log::info!(""),
+            WM_DWMNCRENDERINGCHANGED => log::info!(""),
+            WM_DWMSENDICONICLIVEPREVIEWBITMAP => log::info!(""),
+            WM_DWMSENDICONICTHUMBNAIL => log::info!(""),
+            WM_DWMWINDOWMAXIMIZEDCHANGE => log::info!(""),
+            WM_ENABLE => log::info!(""),
+            WM_ENDSESSION => log::info!(""),
+            WM_ENTERIDLE => log::info!(""),
+            WM_ENTERMENULOOP => log::info!(""),
+            WM_ENTERSIZEMOVE => log::info!(""),
+            WM_ERASEBKGND => log::info!(""),
+            WM_EXITMENULOOP => log::info!(""),
+            WM_EXITSIZEMOVE => log::info!(""),
+            WM_FONTCHANGE => log::info!(""),
+            WM_GESTURE => log::info!(""),
+            WM_GESTURENOTIFY => log::info!(""),
+            WM_GETDLGCODE => log::info!(""),
+            WM_GETDPISCALEDSIZE => log::info!(""),
+            WM_GETFONT => log::info!(""),
+            WM_GETHOTKEY => log::info!(""),
+            WM_GETICON => log::info!(""),
+            WM_GETMINMAXINFO => log::info!(""),
+            WM_GETOBJECT => log::info!(""),
+            WM_GETTEXT => log::info!(""),
+            WM_GETTEXTLENGTH => log::info!(""),
+            WM_GETTITLEBARINFOEX => log::info!(""),
+            WM_HANDHELDFIRST => log::info!(""),
+            WM_HANDHELDLAST => log::info!(""),
+            WM_HELP => log::info!(""),
+            WM_HOTKEY => log::info!(""),
+            WM_HSCROLL => log::info!(""),
+            WM_HSCROLLCLIPBOARD => log::info!(""),
+            WM_ICONERASEBKGND => log::info!(""),
+            WM_IME_CHAR => log::info!(""),
+            WM_IME_COMPOSITION => log::info!(""),
+            WM_IME_COMPOSITIONFULL => log::info!(""),
+            WM_IME_CONTROL => log::info!(""),
+            WM_IME_ENDCOMPOSITION => log::info!(""),
+            WM_IME_KEYDOWN => log::info!(""),
+            WM_IME_KEYLAST => log::info!(""),
+            WM_IME_KEYUP => log::info!(""),
+            WM_IME_NOTIFY => log::info!(""),
+            WM_IME_REQUEST => log::info!(""),
+            WM_IME_SELECT => log::info!(""),
+            WM_IME_SETCONTEXT => log::info!(""),
+            WM_IME_STARTCOMPOSITION => log::info!(""),
+            WM_INITDIALOG => log::info!(""),
+            WM_INITMENU => log::info!(""),
+            WM_INITMENUPOPUP => log::info!(""),
+            WM_INPUT => log::info!(""),
+            WM_INPUTLANGCHANGE => log::info!(""),
+            WM_INPUTLANGCHANGEREQUEST => log::info!(""),
+            WM_INPUT_DEVICE_CHANGE => log::info!(""),
+            WM_KEYDOWN => log::info!(""),
+            WM_KEYFIRST => log::info!(""),
+            WM_KEYLAST => log::info!(""),
+            WM_KEYUP => log::info!(""),
+            WM_KILLFOCUS => log::info!(""),
+            WM_LBUTTONDBLCLK => log::info!(""),
+            WM_LBUTTONDOWN => log::info!(""),
+            WM_LBUTTONUP => log::info!(""),
+            WM_MBUTTONDBLCLK => log::info!(""),
+            WM_MBUTTONDOWN => log::info!(""),
+            WM_MBUTTONUP => log::info!(""),
+            WM_MDIACTIVATE => log::info!(""),
+            WM_MDICASCADE => log::info!(""),
+            WM_MDICREATE => log::info!(""),
+            WM_MDIDESTROY => log::info!(""),
+            WM_MDIGETACTIVE => log::info!(""),
+            WM_MDIICONARRANGE => log::info!(""),
+            WM_MDIMAXIMIZE => log::info!(""),
+            WM_MDINEXT => log::info!(""),
+            WM_MDIREFRESHMENU => log::info!(""),
+            WM_MDIRESTORE => log::info!(""),
+            WM_MDISETMENU => log::info!(""),
+            WM_MDITILE => log::info!(""),
+            WM_MEASUREITEM => log::info!(""),
+            WM_MENUCHAR => log::info!(""),
+            WM_MENUCOMMAND => log::info!(""),
+            WM_MENUDRAG => log::info!(""),
+            WM_MENUGETOBJECT => log::info!(""),
+            WM_MENURBUTTONUP => log::info!(""),
+            WM_MENUSELECT => log::info!(""),
+            WM_MOUSEACTIVATE => log::info!(""),
+            WM_MOUSEFIRST => log::info!(""),
+            WM_MOUSEHWHEEL => log::info!(""),
+            WM_MOUSELAST => log::info!(""),
+            WM_MOUSEMOVE => log::info!(""),
+            WM_MOUSEWHEEL => log::info!(""),
+            WM_MOVE => log::info!(""),
+            WM_MOVING => log::info!(""),
+            WM_NCACTIVATE => log::info!(""),
+            WM_NCCALCSIZE => log::info!(""),
+            WM_NCCREATE => log::info!(""),
+            WM_NCDESTROY => log::info!(""),
+            WM_NCHITTEST => log::info!(""),
+            WM_NCLBUTTONDBLCLK => log::info!(""),
+            WM_NCLBUTTONDOWN => log::info!(""),
+            WM_NCLBUTTONUP => log::info!(""),
+            WM_NCMBUTTONDBLCLK => log::info!(""),
+            WM_NCMBUTTONDOWN => log::info!(""),
+            WM_NCMBUTTONUP => log::info!(""),
+            WM_NCMOUSEHOVER => log::info!(""),
+            WM_NCMOUSELEAVE => log::info!(""),
+            WM_NCMOUSEMOVE => log::info!(""),
+            WM_NCPAINT => log::info!(""),
+            WM_NCPOINTERDOWN => log::info!(""),
+            WM_NCPOINTERUP => log::info!(""),
+            WM_NCPOINTERUPDATE => log::info!(""),
+            WM_NCRBUTTONDBLCLK => log::info!(""),
+            WM_NCRBUTTONDOWN => log::info!(""),
+            WM_NCRBUTTONUP => log::info!(""),
+            WM_NCXBUTTONDBLCLK => log::info!(""),
+            WM_NCXBUTTONDOWN => log::info!(""),
+            WM_NCXBUTTONUP => log::info!(""),
+            WM_NEXTDLGCTL => log::info!(""),
+            WM_NEXTMENU => log::info!(""),
+            WM_NOTIFY => log::info!(""),
+            WM_NOTIFYFORMAT => log::info!(""),
+            WM_NULL => log::info!(""),
+            WM_PAINT => log::info!(""),
+            WM_PAINTCLIPBOARD => log::info!(""),
+            WM_PAINTICON => log::info!(""),
+            WM_PALETTECHANGED => log::info!(""),
+            WM_PALETTEISCHANGING => log::info!(""),
+            WM_PARENTNOTIFY => log::info!(""),
+            WM_PASTE => log::info!(""),
+            WM_PENWINFIRST => log::info!(""),
+            WM_PENWINLAST => log::info!(""),
+            WM_POINTERACTIVATE => log::info!(""),
+            WM_POINTERCAPTURECHANGED => log::info!(""),
+            WM_POINTERDEVICECHANGE => log::info!(""),
+            WM_POINTERDEVICEINRANGE => log::info!(""),
+            WM_POINTERDEVICEOUTOFRANGE => log::info!(""),
+            WM_POINTERDOWN => log::info!(""),
+            WM_POINTERENTER => log::info!(""),
+            WM_POINTERHWHEEL => log::info!(""),
+            WM_POINTERLEAVE => log::info!(""),
+            WM_POINTERROUTEDAWAY => log::info!(""),
+            WM_POINTERROUTEDRELEASED => log::info!(""),
+            WM_POINTERROUTEDTO => log::info!(""),
+            WM_POINTERUP => log::info!(""),
+            WM_POINTERUPDATE => log::info!(""),
+            WM_POINTERWHEEL => log::info!(""),
+            WM_POWER => log::info!(""),
+            WM_POWERBROADCAST => log::info!(""),
+            WM_PRINT => log::info!(""),
+            WM_PRINTCLIENT => log::info!(""),
+            WM_QUERYDRAGICON => log::info!(""),
+            WM_QUERYENDSESSION => log::info!(""),
+            WM_QUERYNEWPALETTE => log::info!(""),
+            WM_QUERYOPEN => log::info!(""),
+            WM_QUERYUISTATE => log::info!(""),
+            WM_QUEUESYNC => log::info!(""),
+            WM_QUIT => log::info!(""),
+            WM_RBUTTONDBLCLK => log::info!(""),
+            WM_RBUTTONDOWN => log::info!(""),
+            WM_RBUTTONUP => log::info!(""),
+            WM_RENDERALLFORMATS => log::info!(""),
+            WM_RENDERFORMAT => log::info!(""),
+            WM_SETCURSOR => log::info!(""),
+            WM_SETFOCUS => log::info!(""),
+            WM_SETFONT => log::info!(""),
+            WM_SETHOTKEY => log::info!(""),
+            WM_SETICON => log::info!(""),
+            WM_SETREDRAW => log::info!(""),
+            WM_SETTEXT => log::info!(""),
+            WM_SETTINGCHANGE => log::info!(""),
+            WM_SHOWWINDOW => log::info!(""),
+            WM_SIZE => log::info!(""),
+            WM_SIZECLIPBOARD => log::info!(""),
+            WM_SIZING => log::info!(""),
+            WM_SPOOLERSTATUS => log::info!(""),
+            WM_STYLECHANGED => log::info!(""),
+            WM_STYLECHANGING => log::info!(""),
+            WM_SYNCPAINT => log::info!(""),
+            WM_SYSCHAR => log::info!(""),
+            WM_SYSCOLORCHANGE => log::info!(""),
+            WM_SYSCOMMAND => log::info!(""),
+            WM_SYSDEADCHAR => log::info!(""),
+            WM_SYSKEYDOWN => log::info!(""),
+            WM_SYSKEYUP => log::info!(""),
+            WM_TABLET_FIRST => log::info!(""),
+            WM_TABLET_LAST => log::info!(""),
+            WM_TCARD => log::info!(""),
+            WM_THEMECHANGED => log::info!(""),
+            WM_TIMECHANGE => log::info!(""),
+            WM_TIMER => log::info!(""),
+            WM_TOOLTIPDISMISS => log::info!(""),
+            WM_TOUCH => log::info!(""),
+            WM_TOUCHHITTESTING => log::info!(""),
+            WM_UNDO => log::info!(""),
+            WM_UNICHAR => log::info!(""),
+            WM_UNINITMENUPOPUP => log::info!(""),
+            WM_UPDATEUISTATE => log::info!(""),
+            WM_USER => log::info!(""),
+            WM_USERCHANGED => log::info!(""),
+            WM_VKEYTOITEM => log::info!(""),
+            WM_VSCROLL => log::info!(""),
+            WM_VSCROLLCLIPBOARD => log::info!(""),
+            WM_WINDOWPOSCHANGED => log::info!(""),
+            WM_WINDOWPOSCHANGING => log::info!(""),
+            WM_WININICHANGE => log::info!(""),
+            WM_WTSSESSION_CHANGE => log::info!(""),
+            WM_XBUTTONDBLCLK => log::info!(""),
+            WM_XBUTTONDOWN => log::info!(""),
+            WM_XBUTTONUP => log::info!(""),
             49306 => {
-                print!("{:03} WM_UNDOCUMENTED_STARTUP_MSG ", ctr_base-ctr);
-                println!("{} {:?} {:?} {:?}", msg.time, msg.pt, msg.lParam, msg.wParam);
+                log::info!("{:03} WM_UNDOCUMENTED_STARTUP_MSG {} {:?} {:?} {:?}",
+                    ctr_base-ctr, msg.time, msg.pt, msg.lParam, msg.wParam);
                 // dbg!(msg);
                 // dbg!((msg.time, msg.pt, msg.lParam.0, msg.wParam.0));
                 continue;
             },
             96 if (msg.lParam.0, msg.wParam.0) == (0, 1) => {
-                print!("{:03} WM_UNDOCUMENTED_STARTUP_MSG_2:0:1 ", ctr_base-ctr);
-                println!("{} {:?} {:?} {:?}", msg.time, msg.pt, msg.lParam, msg.wParam);
+                log::info!("{:03} WM_UNDOCUMENTED_STARTUP_MSG_2:0:1 {} {:?} {:?} {:?}",
+                    ctr_base-ctr, msg.time, msg.pt, msg.lParam, msg.wParam);
                 // dbg!((msg.time, msg.pt, msg.lParam.0, msg.wParam.0));
                 // continue;
             },
             96 if (msg.lParam.0, msg.wParam.0) == (0, 6) => {
-                print!("{:03} WM_UNDOCUMENTED_STARTUP_MSG_2:0:6 ", ctr_base-ctr);
-                println!("{} {:?} {:?} {:?}", msg.time, msg.pt, msg.lParam, msg.wParam);
+                log::info!("{:03} WM_UNDOCUMENTED_STARTUP_MSG_2:0:6 {} {:?} {:?} {:?}",
+                    ctr_base-ctr, msg.time, msg.pt, msg.lParam, msg.wParam);
                 // dbg!((msg.time, msg.pt, msg.lParam.0, msg.wParam.0));
                 // continue;
             },
             96 => {
-                print!("{:03} WM_UNDOCUMENTED_STARTUP_MSG_2 ", ctr_base-ctr);
-                println!("{} {:?} {:?} {:?}", msg.time, msg.pt, msg.lParam, msg.wParam);
+                log::info!("{:03} WM_UNDOCUMENTED_STARTUP_MSG_2 {} {:?} {:?} {:?}",
+                    ctr_base-ctr, msg.time, msg.pt, msg.lParam, msg.wParam);
                 // continue;
             },
             // _ => {},
-            _ => {dbg!(msg);},
+            _ => {log::debug!("{:0x?}", msg);log::debug!("{:?}", msg);dbg!(msg);},
         }
         
         // process input messages by translating virtual keys into characters
         let r= unsafe {TranslateMessage(&msg)}.0;
         if r != 0 {
-            println!("TranslateMessage returned {} for message: {:?}", r, &msg);
+            log::info!("TranslateMessage returned {} for message: {:?}", r, &msg);
         } else {
             match msg.message {
                 49306 => {},
                 96 => {},
                 WM_TIMER | WM_DWMNCRENDERINGCHANGED | WM_PAINT => {},
                 _ => {
-                    println!("No character message for TranslateMessage");
-                    // println!("{:03} TranslateMessage returned {} for message: {:?}", ctr_base-ctr, r, &msg);
+                    log::info!("No character message for TranslateMessage");
+                    // log::info!("{:03} TranslateMessage returned {} for message: {:?}", ctr_base-ctr, r, &msg);
                 },
             }
         }
@@ -642,7 +645,7 @@ pub fn main() -> Result<()> {
             96 => {},
             WM_TIMER | WM_DWMNCRENDERINGCHANGED | WM_PAINT if r == 0 => {},
             _ => {
-                println!("{:03} DispatchMessageW returned {}", ctr_base-ctr, r);
+                log::info!("{:03} DispatchMessageW returned {}", ctr_base-ctr, r);
             },
         }
     }
@@ -660,7 +663,7 @@ fn load_image_as_bitmap(img_path: &str) -> (HGDIOBJ, i32, i32) {
     // Load the image using the `image` crate
     let img = image::open(img_path).expect("Failed to load image");
     let (width, height) = img.dimensions();
-    println!("Loaded image dimensions: {} x {}", width, height); // Debug line
+    log::info!("Loaded image dimensions: {} x {}", width, height); // Debug line
     let img = img.to_rgba8();
     
     // Create a device context for the entire screen
@@ -720,7 +723,7 @@ fn load_image_as_bitmap(img_path: &str) -> (HGDIOBJ, i32, i32) {
         );
 
         if res == 0 {
-            println!("Failed to set DIB bits: {}", GetLastError().0);
+            log::info!("Failed to set DIB bits: {}", GetLastError().0);
         }
     }
 
@@ -736,6 +739,46 @@ fn load_image_as_bitmap(img_path: &str) -> (HGDIOBJ, i32, i32) {
     (hbitmap.into(), width as i32, height as i32)
 }
 
+
+struct Window {
+    hwnd: HWND,
+    hdc: HDC,
+    hdc_mem: HDC,
+    hbitmap: HBITMAP,
+    width: i32,
+    height: i32,
+}
+
+unsafe extern "system" fn win_msg_proc(hwnd: HWND, msg: u32, w: WPARAM, l: LPARAM) -> LRESULT {
+    if hwnd.is_invalid() {
+        log::trace!("Invalid window handle: {:x?}", (hwnd, msg, w, l));
+        return DefWindowProcW(hwnd, msg, w, l); // bonus thread message, probably
+    }
+
+    let raw = GetWindowLongPtrW(hwnd, GWLP_USERDATA) as *const Window;
+    // if raw.is_null() {
+        log::trace!("Null window handle: {:x?}", (hwnd, msg, w, l));
+        window_proc(hwnd, msg, w, l) // weird, different window source?
+    // } else {
+    //     let weak: ManuallyDrop<Weak<Window>> = ManuallyDrop::new(Weak::new());
+    //     let weak = ManuallyDrop::new(Weak::from(raw));
+    //     let Some(window) = weak.upgrade()
+    //     else {
+    //         return DefWindowProcW(hwnd, msg, w, l); // lost window
+    //     };
+
+    //     window.proc(msg, w, l)
+    // }
+
+    // let weak = ManuallyDrop::new(Weak::try_from(raw).unwrap());
+    // let Some(window) = weak.upgrade()
+    // else {
+    //     return DefWindowProcW(hwnd, msg, w, l); // lost window
+    // };
+
+    // window.proc(msg, w, l)
+}
+
 unsafe extern "system" fn window_proc(
     hwnd: HWND,
     msg: u32,
@@ -747,11 +790,11 @@ unsafe extern "system" fn window_proc(
             "" => format!("0x{:04x} {}", msg, msg),
             m => format!("{}", m),
         };
-        // println!("[{:x?}] {}, {}, {}", hwnd.0, msg, wParam.0, lParam.0);
-        log::trace!("[{:x?}] {}, {}, {}", hwnd.0, msg, wParam.0, lParam.0);
+        log::info!("[{:x?}] {}, {}, {}", hwnd.0, msg, wParam.0, lParam.0);
+        // log::trace!("[{:x?}] {}, {}, {}", hwnd.0, msg, wParam.0, lParam.0);
     };
     // log::info!("Message {:?} received", msg);
-    // println!("Message {:?} received", msg);
+    // log::info!("Message {:?} received", msg);
     match msg {
         WM_CLOSE => {
             print_msg("WM_CLOSE");
@@ -761,25 +804,23 @@ unsafe extern "system" fn window_proc(
 
         WM_GETMINMAXINFO => {
             match wm_getminmaxinfo(hwnd, lParam) {
-                Ok(_mmi) => {
-                    if DBG_OPTS.show_wm_getminmaxinfo {
-                        print_msg("WM_GETMINMAXINFO");
-                    }
+                Ok(_mmi) => if DBG_OPTS.show_wm_getminmaxinfo {
+                    // print_msg("WM_GETMINMAXINFO");
                 },
+                Ok(_) => {},
                 Err(e) => {
-                    println!("Error in WM_GETMINMAXINFO: {:?}", e);
+                    log::info!("Error in WM_GETMINMAXINFO: {:?}", e);
                 }
             }
         }
         WM_NCCREATE => {
-            match wm_nccreate(hwnd, lParam) {
-                Ok(_cs) => {
-                    if DBG_OPTS.show_wm_nccreate {
-                        print_msg("WM_NCCREATE");
-                    }
-                },
+            match wm_create(WM_NCCREATE, hwnd, lParam) {
+                Ok(_cs) => if DBG_OPTS.show_wm_nccreate {
+                    // print_msg("WM_NCCREATE");
+                }
+                Ok(_) => {},
                 Err(e) => {
-                    println!("Error in WM_NCCREATE: {:?}", e);
+                    log::info!("Error in WM_NCCREATE: {:?}", e);
                 }
             }
         }
@@ -788,25 +829,23 @@ unsafe extern "system" fn window_proc(
         }
         WM_NCCALCSIZE => {
             match wm_nccalcsize(hwnd, lParam) {
-                Ok(_rect) => {
-                    if DBG_OPTS.show_wm_nccalcsize {
-                        print_msg("WM_NCCALCSIZE");
-                    }
-                },
+                Ok(_rect) => if DBG_OPTS.show_wm_nccalcsize {
+                    print_msg("WM_NCCALCSIZE");
+                }
+                Ok(_) => {},
                 Err(e) => {
-                    println!("Error in WM_NCCALCSIZE: {:?}", e);
+                    log::info!("Error in WM_NCCALCSIZE: {:?}", e);
                 }
             }
         }
         WM_CREATE => {
-            match wm_create(hwnd, lParam) {
-                Ok(_cs) => {
-                    if DBG_OPTS.show_wm_create {
-                        print_msg("WM_CREATE");
-                    }
+            match wm_create(WM_CREATE, hwnd, lParam) {
+                Ok(_cs) => if DBG_OPTS.show_wm_create {
+                    // print_msg("WM_CREATE");
                 },
+                Ok(_) => {},
                 Err(e) => {
-                    println!("Error in WM_CREATE: {:?}", e);
+                    log::info!("Error in WM_CREATE: {:?}", e);
                 }
             }
         }
@@ -824,7 +863,7 @@ unsafe extern "system" fn window_proc(
                     }
                 },
                 Err(e) => {
-                    println!("Error in WM_WINDOWPOSCHANGING: {:?}", e);
+                    log::info!("Error in WM_WINDOWPOSCHANGING: {:?}", e);
                 }
             }
         }
@@ -833,7 +872,7 @@ unsafe extern "system" fn window_proc(
                 print_msg("WM_ACTIVATEAPP");
             }
             wm_activateapp(hwnd, wParam, lParam);
-            // println!("wParam: {:?}, lParam: {:?}", wParam, lParam);
+            // log::info!("wParam: {:?}, lParam: {:?}", wParam, lParam);
         },
         WM_NCACTIVATE => {
             if DBG_OPTS.show_wm_ncactivate {
@@ -852,7 +891,7 @@ unsafe extern "system" fn window_proc(
                 print_msg("WM_ACTIVATE");
             }
             wm_activate(hwnd, wParam, lParam);
-            // println!("wParam: {:?}, lParam: {:?}", wParam, lParam);
+            // log::info!("wParam: {:?}, lParam: {:?}", wParam, lParam);
         }
         WM_IME_SETCONTEXT => {
             if DBG_OPTS.show_wm_ime_setcontext {
@@ -929,270 +968,270 @@ unsafe extern "system" fn window_proc(
             if DBG_OPTS.show_wm_nchittest {
                 print_msg("WM_NCHITTEST");
             }
-            // wm_nchittest(hwnd, lParam);
-            println!("\n\n\t\t\tlatest");
+            wm_nchittest(hwnd, wParam, lParam);
+            log::info!("\n\n\t\t\tlatest");
         }
 
 
-        // WM_ACTIVATE => println!("WM_ACTIVATE"),
-        // WM_ACTIVATEAPP => println!("WM_ACTIVATEAPP"),
-        // WM_AFXFIRST => println!("WM_AFXFIRST"),
-        // WM_AFXLAST => println!("WM_AFXLAST"),
-        // WM_APP => println!("WM_APP"),
-        // WM_APPCOMMAND => println!("WM_APPCOMMAND"),
-        // WM_ASKCBFORMATNAME => println!(""),
-        // WM_CANCELJOURNAL => println!(""),
-        // WM_CANCELMODE => println!(""),
-        // WM_CAPTURECHANGED => println!(""),
-        // WM_CHANGECBCHAIN => println!(""),
-        // WM_CHANGEUISTATE => println!(""),
-        // WM_CHAR => println!(""),
-        // WM_CHARTOITEM => println!(""),
-        // WM_CHILDACTIVATE => println!(""),
-        // WM_CLEAR => println!(""),
-        // WM_CLIPBOARDUPDATE => println!(""),
-        // WM_CLOSE => println!(""),
-        // WM_COMMAND => println!(""),
-        // WM_COMMNOTIFY => println!(""),
-        // WM_COMPACTING => println!(""),
-        // WM_COMPAREITEM => println!(""),
-        // WM_CONTEXTMENU => println!(""),
-        // WM_COPY => println!(""),
-        // WM_COPYDATA => println!(""),
-        // WM_CREATE => println!(""),
-        // WM_CTLCOLORBTN => println!(""),
-        // WM_CTLCOLORDLG => println!(""),
-        // WM_CTLCOLOREDIT => println!(""),
-        // WM_CTLCOLORLISTBOX => println!(""),
-        // WM_CTLCOLORMSGBOX => println!(""),
-        // WM_CTLCOLORSCROLLBAR => println!(""),
-        // WM_CTLCOLORSTATIC => println!(""),
-        // WM_CUT => println!(""),
-        // WM_DEADCHAR => println!(""),
-        // WM_DELETEITEM => println!(""),
-        // WM_DESTROY => println!(""),
-        // WM_DESTROYCLIPBOARD => println!(""),
-        // WM_DEVICECHANGE => println!(""),
-        // WM_DEVMODECHANGE => println!(""),
-        // WM_DISPLAYCHANGE => println!(""),
-        // WM_DPICHANGED => println!(""),
-        // WM_DPICHANGED_AFTERPARENT => println!(""),
-        // WM_DPICHANGED_BEFOREPARENT => println!(""),
-        // WM_DRAWCLIPBOARD => println!(""),
-        // WM_DRAWITEM => println!(""),
-        // WM_DROPFILES => println!(""),
-        // WM_DWMCOLORIZATIONCOLORCHANGED => println!(""),
-        // WM_DWMCOMPOSITIONCHANGED => println!(""),
-        // WM_DWMNCRENDERINGCHANGED => println!(""),
-        // WM_DWMSENDICONICLIVEPREVIEWBITMAP => println!(""),
-        // WM_DWMSENDICONICTHUMBNAIL => println!(""),
-        // WM_DWMWINDOWMAXIMIZEDCHANGE => println!(""),
-        // WM_ENABLE => println!(""),
-        // WM_ENDSESSION => println!(""),
-        // WM_ENTERIDLE => println!(""),
-        // WM_ENTERMENULOOP => println!(""),
-        // WM_ENTERSIZEMOVE => println!(""),
-        // WM_ERASEBKGND => println!(""),
-        // WM_EXITMENULOOP => println!(""),
-        // WM_EXITSIZEMOVE => println!(""),
-        // WM_FONTCHANGE => println!(""),
-        // WM_GESTURE => println!(""),
-        // WM_GESTURENOTIFY => println!(""),
-        // WM_GETDLGCODE => println!(""),
-        // WM_GETDPISCALEDSIZE => println!(""),
-        // WM_GETFONT => println!(""),
-        // WM_GETHOTKEY => println!(""),
-        // WM_GETICON => println!(""),
-        // WM_GETMINMAXINFO => println!(""),
-        // WM_GETOBJECT => println!(""),
-        // WM_GETTEXT => println!(""),
-        // WM_GETTEXTLENGTH => println!(""),
-        // WM_GETTITLEBARINFOEX => println!(""),
-        // WM_HANDHELDFIRST => println!(""),
-        // WM_HANDHELDLAST => println!(""),
-        // WM_HELP => println!(""),
-        // WM_HOTKEY => println!(""),
-        // WM_HSCROLL => println!(""),
-        // WM_HSCROLLCLIPBOARD => println!(""),
-        // WM_ICONERASEBKGND => println!(""),
-        // WM_IME_CHAR => println!(""),
-        // WM_IME_COMPOSITION => println!(""),
-        // WM_IME_COMPOSITIONFULL => println!(""),
-        // WM_IME_CONTROL => println!(""),
-        // WM_IME_ENDCOMPOSITION => println!(""),
-        // WM_IME_KEYDOWN => println!(""),
-        // WM_IME_KEYLAST => println!(""),
-        // WM_IME_KEYUP => println!(""),
-        // WM_IME_NOTIFY => println!(""),
-        // WM_IME_REQUEST => println!(""),
-        // WM_IME_SELECT => println!(""),
-        // WM_IME_SETCONTEXT => println!(""),
-        // WM_IME_STARTCOMPOSITION => println!(""),
-        // WM_INITDIALOG => println!(""),
-        // WM_INITMENU => println!(""),
-        // WM_INITMENUPOPUP => println!(""),
-        // WM_INPUT => println!(""),
-        // WM_INPUTLANGCHANGE => println!(""),
-        // WM_INPUTLANGCHANGEREQUEST => println!(""),
-        // WM_INPUT_DEVICE_CHANGE => println!(""),
-        // WM_KEYDOWN => println!(""),
-        // WM_KEYFIRST => println!(""),
-        // WM_KEYLAST => println!(""),
-        // WM_KEYUP => println!(""),
-        // WM_KILLFOCUS => println!(""),
-        // WM_LBUTTONDBLCLK => println!(""),
-        // WM_LBUTTONDOWN => println!(""),
-        // WM_LBUTTONUP => println!(""),
-        // WM_MBUTTONDBLCLK => println!(""),
-        // WM_MBUTTONDOWN => println!(""),
-        // WM_MBUTTONUP => println!(""),
-        // WM_MDIACTIVATE => println!(""),
-        // WM_MDICASCADE => println!(""),
-        // WM_MDICREATE => println!(""),
-        // WM_MDIDESTROY => println!(""),
-        // WM_MDIGETACTIVE => println!(""),
-        // WM_MDIICONARRANGE => println!(""),
-        // WM_MDIMAXIMIZE => println!(""),
-        // WM_MDINEXT => println!(""),
-        // WM_MDIREFRESHMENU => println!(""),
-        // WM_MDIRESTORE => println!(""),
-        // WM_MDISETMENU => println!(""),
-        // WM_MDITILE => println!(""),
-        // WM_MEASUREITEM => println!(""),
-        // WM_MENUCHAR => println!(""),
-        // WM_MENUCOMMAND => println!(""),
-        // WM_MENUDRAG => println!(""),
-        // WM_MENUGETOBJECT => println!(""),
-        // WM_MENURBUTTONUP => println!(""),
-        // WM_MENUSELECT => println!(""),
-        // WM_MOUSEACTIVATE => println!(""),
-        // WM_MOUSEFIRST => println!(""),
-        // WM_MOUSEHWHEEL => println!(""),
-        // WM_MOUSELAST => println!(""),
-        // WM_MOUSEMOVE => println!(""),
-        // WM_MOUSEWHEEL => println!(""),
-        // WM_MOVE => println!(""),
-        // WM_MOVING => println!(""),
-        // WM_NCACTIVATE => println!(""),
-        // WM_NCCALCSIZE => println!(""),
-        // WM_NCCREATE => println!(""),
-        // WM_NCDESTROY => println!(""),
-        // WM_NCHITTEST => println!(""),
-        // WM_NCLBUTTONDBLCLK => println!(""),
-        // WM_NCLBUTTONDOWN => println!(""),
-        // WM_NCLBUTTONUP => println!(""),
-        // WM_NCMBUTTONDBLCLK => println!(""),
-        // WM_NCMBUTTONDOWN => println!(""),
-        // WM_NCMBUTTONUP => println!(""),
-        // WM_NCMOUSEHOVER => println!(""),
-        // WM_NCMOUSELEAVE => println!(""),
-        // WM_NCMOUSEMOVE => println!(""),
-        // WM_NCPAINT => println!(""),
-        // WM_NCPOINTERDOWN => println!(""),
-        // WM_NCPOINTERUP => println!(""),
-        // WM_NCPOINTERUPDATE => println!(""),
-        // WM_NCRBUTTONDBLCLK => println!(""),
-        // WM_NCRBUTTONDOWN => println!(""),
-        // WM_NCRBUTTONUP => println!(""),
-        // WM_NCXBUTTONDBLCLK => println!(""),
-        // WM_NCXBUTTONDOWN => println!(""),
-        // WM_NCXBUTTONUP => println!(""),
-        // WM_NEXTDLGCTL => println!(""),
-        // WM_NEXTMENU => println!(""),
-        // WM_NOTIFY => println!(""),
-        // WM_NOTIFYFORMAT => println!(""),
-        // WM_NULL => println!(""),
-        // WM_PAINT => println!(""),
-        // WM_PAINTCLIPBOARD => println!(""),
-        // WM_PAINTICON => println!(""),
-        // WM_PALETTECHANGED => println!(""),
-        // WM_PALETTEISCHANGING => println!(""),
-        // WM_PARENTNOTIFY => println!(""),
-        // WM_PASTE => println!(""),
-        // WM_PENWINFIRST => println!(""),
-        // WM_PENWINLAST => println!(""),
-        // WM_POINTERACTIVATE => println!(""),
-        // WM_POINTERCAPTURECHANGED => println!(""),
-        // WM_POINTERDEVICECHANGE => println!(""),
-        // WM_POINTERDEVICEINRANGE => println!(""),
-        // WM_POINTERDEVICEOUTOFRANGE => println!(""),
-        // WM_POINTERDOWN => println!(""),
-        // WM_POINTERENTER => println!(""),
-        // WM_POINTERHWHEEL => println!(""),
-        // WM_POINTERLEAVE => println!(""),
-        // WM_POINTERROUTEDAWAY => println!(""),
-        // WM_POINTERROUTEDRELEASED => println!(""),
-        // WM_POINTERROUTEDTO => println!(""),
-        // WM_POINTERUP => println!(""),
-        // WM_POINTERUPDATE => println!(""),
-        // WM_POINTERWHEEL => println!(""),
-        // WM_POWER => println!(""),
-        // WM_POWERBROADCAST => println!(""),
-        // WM_PRINT => println!(""),
-        // WM_PRINTCLIENT => println!(""),
-        // WM_QUERYDRAGICON => println!(""),
-        // WM_QUERYENDSESSION => println!(""),
-        // WM_QUERYNEWPALETTE => println!(""),
-        // WM_QUERYOPEN => println!(""),
-        // WM_QUERYUISTATE => println!(""),
-        // WM_QUEUESYNC => println!(""),
-        // WM_QUIT => println!(""),
-        // WM_RBUTTONDBLCLK => println!(""),
-        // WM_RBUTTONDOWN => println!(""),
-        // WM_RBUTTONUP => println!(""),
-        // WM_RENDERALLFORMATS => println!(""),
-        // WM_RENDERFORMAT => println!(""),
-        // WM_SETCURSOR => println!(""),
-        // WM_SETFOCUS => println!(""),
-        // WM_SETFONT => println!(""),
-        // WM_SETHOTKEY => println!(""),
-        // WM_SETICON => println!(""),
-        // WM_SETREDRAW => println!(""),
-        // WM_SETTEXT => println!(""),
-        // WM_SETTINGCHANGE => println!(""),
-        // WM_SHOWWINDOW => println!(""),
-        // WM_SIZE => println!(""),
-        // WM_SIZECLIPBOARD => println!(""),
-        // WM_SIZING => println!(""),
-        // WM_SPOOLERSTATUS => println!(""),
-        // WM_STYLECHANGED => println!(""),
-        // WM_STYLECHANGING => println!(""),
-        // WM_SYNCPAINT => println!(""),
-        // WM_SYSCHAR => println!(""),
-        // WM_SYSCOLORCHANGE => println!(""),
-        // WM_SYSCOMMAND => println!(""),
-        // WM_SYSDEADCHAR => println!(""),
-        // WM_SYSKEYDOWN => println!(""),
-        // WM_SYSKEYUP => println!(""),
-        // WM_TABLET_FIRST => println!(""),
-        // WM_TABLET_LAST => println!(""),
-        // WM_TCARD => println!(""),
-        // WM_THEMECHANGED => println!(""),
-        // WM_TIMECHANGE => println!(""),
-        // WM_TIMER => println!(""),
-        // WM_TOOLTIPDISMISS => println!(""),
-        // WM_TOUCH => println!(""),
-        // WM_TOUCHHITTESTING => println!(""),
-        // WM_UNDO => println!(""),
-        // WM_UNICHAR => println!(""),
-        // WM_UNINITMENUPOPUP => println!(""),
-        // WM_UPDATEUISTATE => println!(""),
-        // WM_USER => println!(""),
-        // WM_USERCHANGED => println!(""),
-        // WM_VKEYTOITEM => println!(""),
-        // WM_VSCROLL => println!(""),
-        // WM_VSCROLLCLIPBOARD => println!(""),
-        // WM_WINDOWPOSCHANGED => println!(""),
-        // WM_WINDOWPOSCHANGING => println!(""),
-        // WM_WININICHANGE => println!(""),
-        // WM_WTSSESSION_CHANGE => println!(""),
-        // WM_XBUTTONDBLCLK => println!(""),
-        // WM_XBUTTONDOWN => println!(""),
-        // WM_XBUTTONUP => println!(""),
+        // WM_ACTIVATE => log::info!("WM_ACTIVATE"),
+        // WM_ACTIVATEAPP => log::info!("WM_ACTIVATEAPP"),
+        // WM_AFXFIRST => log::info!("WM_AFXFIRST"),
+        // WM_AFXLAST => log::info!("WM_AFXLAST"),
+        // WM_APP => log::info!("WM_APP"),
+        // WM_APPCOMMAND => log::info!("WM_APPCOMMAND"),
+        // WM_ASKCBFORMATNAME => log::info!(""),
+        // WM_CANCELJOURNAL => log::info!(""),
+        // WM_CANCELMODE => log::info!(""),
+        // WM_CAPTURECHANGED => log::info!(""),
+        // WM_CHANGECBCHAIN => log::info!(""),
+        // WM_CHANGEUISTATE => log::info!(""),
+        // WM_CHAR => log::info!(""),
+        // WM_CHARTOITEM => log::info!(""),
+        // WM_CHILDACTIVATE => log::info!(""),
+        // WM_CLEAR => log::info!(""),
+        // WM_CLIPBOARDUPDATE => log::info!(""),
+        // WM_CLOSE => log::info!(""),
+        // WM_COMMAND => log::info!(""),
+        // WM_COMMNOTIFY => log::info!(""),
+        // WM_COMPACTING => log::info!(""),
+        // WM_COMPAREITEM => log::info!(""),
+        // WM_CONTEXTMENU => log::info!(""),
+        // WM_COPY => log::info!(""),
+        // WM_COPYDATA => log::info!(""),
+        // WM_CREATE => log::info!(""),
+        // WM_CTLCOLORBTN => log::info!(""),
+        // WM_CTLCOLORDLG => log::info!(""),
+        // WM_CTLCOLOREDIT => log::info!(""),
+        // WM_CTLCOLORLISTBOX => log::info!(""),
+        // WM_CTLCOLORMSGBOX => log::info!(""),
+        // WM_CTLCOLORSCROLLBAR => log::info!(""),
+        // WM_CTLCOLORSTATIC => log::info!(""),
+        // WM_CUT => log::info!(""),
+        // WM_DEADCHAR => log::info!(""),
+        // WM_DELETEITEM => log::info!(""),
+        // WM_DESTROY => log::info!(""),
+        // WM_DESTROYCLIPBOARD => log::info!(""),
+        // WM_DEVICECHANGE => log::info!(""),
+        // WM_DEVMODECHANGE => log::info!(""),
+        // WM_DISPLAYCHANGE => log::info!(""),
+        // WM_DPICHANGED => log::info!(""),
+        // WM_DPICHANGED_AFTERPARENT => log::info!(""),
+        // WM_DPICHANGED_BEFOREPARENT => log::info!(""),
+        // WM_DRAWCLIPBOARD => log::info!(""),
+        // WM_DRAWITEM => log::info!(""),
+        // WM_DROPFILES => log::info!(""),
+        // WM_DWMCOLORIZATIONCOLORCHANGED => log::info!(""),
+        // WM_DWMCOMPOSITIONCHANGED => log::info!(""),
+        // WM_DWMNCRENDERINGCHANGED => log::info!(""),
+        // WM_DWMSENDICONICLIVEPREVIEWBITMAP => log::info!(""),
+        // WM_DWMSENDICONICTHUMBNAIL => log::info!(""),
+        // WM_DWMWINDOWMAXIMIZEDCHANGE => log::info!(""),
+        // WM_ENABLE => log::info!(""),
+        // WM_ENDSESSION => log::info!(""),
+        // WM_ENTERIDLE => log::info!(""),
+        // WM_ENTERMENULOOP => log::info!(""),
+        // WM_ENTERSIZEMOVE => log::info!(""),
+        // WM_ERASEBKGND => log::info!(""),
+        // WM_EXITMENULOOP => log::info!(""),
+        // WM_EXITSIZEMOVE => log::info!(""),
+        // WM_FONTCHANGE => log::info!(""),
+        // WM_GESTURE => log::info!(""),
+        // WM_GESTURENOTIFY => log::info!(""),
+        // WM_GETDLGCODE => log::info!(""),
+        // WM_GETDPISCALEDSIZE => log::info!(""),
+        // WM_GETFONT => log::info!(""),
+        // WM_GETHOTKEY => log::info!(""),
+        // WM_GETICON => log::info!(""),
+        // WM_GETMINMAXINFO => log::info!(""),
+        // WM_GETOBJECT => log::info!(""),
+        // WM_GETTEXT => log::info!(""),
+        // WM_GETTEXTLENGTH => log::info!(""),
+        // WM_GETTITLEBARINFOEX => log::info!(""),
+        // WM_HANDHELDFIRST => log::info!(""),
+        // WM_HANDHELDLAST => log::info!(""),
+        // WM_HELP => log::info!(""),
+        // WM_HOTKEY => log::info!(""),
+        // WM_HSCROLL => log::info!(""),
+        // WM_HSCROLLCLIPBOARD => log::info!(""),
+        // WM_ICONERASEBKGND => log::info!(""),
+        // WM_IME_CHAR => log::info!(""),
+        // WM_IME_COMPOSITION => log::info!(""),
+        // WM_IME_COMPOSITIONFULL => log::info!(""),
+        // WM_IME_CONTROL => log::info!(""),
+        // WM_IME_ENDCOMPOSITION => log::info!(""),
+        // WM_IME_KEYDOWN => log::info!(""),
+        // WM_IME_KEYLAST => log::info!(""),
+        // WM_IME_KEYUP => log::info!(""),
+        // WM_IME_NOTIFY => log::info!(""),
+        // WM_IME_REQUEST => log::info!(""),
+        // WM_IME_SELECT => log::info!(""),
+        // WM_IME_SETCONTEXT => log::info!(""),
+        // WM_IME_STARTCOMPOSITION => log::info!(""),
+        // WM_INITDIALOG => log::info!(""),
+        // WM_INITMENU => log::info!(""),
+        // WM_INITMENUPOPUP => log::info!(""),
+        // WM_INPUT => log::info!(""),
+        // WM_INPUTLANGCHANGE => log::info!(""),
+        // WM_INPUTLANGCHANGEREQUEST => log::info!(""),
+        // WM_INPUT_DEVICE_CHANGE => log::info!(""),
+        // WM_KEYDOWN => log::info!(""),
+        // WM_KEYFIRST => log::info!(""),
+        // WM_KEYLAST => log::info!(""),
+        // WM_KEYUP => log::info!(""),
+        // WM_KILLFOCUS => log::info!(""),
+        // WM_LBUTTONDBLCLK => log::info!(""),
+        // WM_LBUTTONDOWN => log::info!(""),
+        // WM_LBUTTONUP => log::info!(""),
+        // WM_MBUTTONDBLCLK => log::info!(""),
+        // WM_MBUTTONDOWN => log::info!(""),
+        // WM_MBUTTONUP => log::info!(""),
+        // WM_MDIACTIVATE => log::info!(""),
+        // WM_MDICASCADE => log::info!(""),
+        // WM_MDICREATE => log::info!(""),
+        // WM_MDIDESTROY => log::info!(""),
+        // WM_MDIGETACTIVE => log::info!(""),
+        // WM_MDIICONARRANGE => log::info!(""),
+        // WM_MDIMAXIMIZE => log::info!(""),
+        // WM_MDINEXT => log::info!(""),
+        // WM_MDIREFRESHMENU => log::info!(""),
+        // WM_MDIRESTORE => log::info!(""),
+        // WM_MDISETMENU => log::info!(""),
+        // WM_MDITILE => log::info!(""),
+        // WM_MEASUREITEM => log::info!(""),
+        // WM_MENUCHAR => log::info!(""),
+        // WM_MENUCOMMAND => log::info!(""),
+        // WM_MENUDRAG => log::info!(""),
+        // WM_MENUGETOBJECT => log::info!(""),
+        // WM_MENURBUTTONUP => log::info!(""),
+        // WM_MENUSELECT => log::info!(""),
+        // WM_MOUSEACTIVATE => log::info!(""),
+        // WM_MOUSEFIRST => log::info!(""),
+        // WM_MOUSEHWHEEL => log::info!(""),
+        // WM_MOUSELAST => log::info!(""),
+        // WM_MOUSEMOVE => log::info!(""),
+        // WM_MOUSEWHEEL => log::info!(""),
+        // WM_MOVE => log::info!(""),
+        // WM_MOVING => log::info!(""),
+        // WM_NCACTIVATE => log::info!(""),
+        // WM_NCCALCSIZE => log::info!(""),
+        // WM_NCCREATE => log::info!(""),
+        // WM_NCDESTROY => log::info!(""),
+        // WM_NCHITTEST => log::info!(""),
+        // WM_NCLBUTTONDBLCLK => log::info!(""),
+        // WM_NCLBUTTONDOWN => log::info!(""),
+        // WM_NCLBUTTONUP => log::info!(""),
+        // WM_NCMBUTTONDBLCLK => log::info!(""),
+        // WM_NCMBUTTONDOWN => log::info!(""),
+        // WM_NCMBUTTONUP => log::info!(""),
+        // WM_NCMOUSEHOVER => log::info!(""),
+        // WM_NCMOUSELEAVE => log::info!(""),
+        // WM_NCMOUSEMOVE => log::info!(""),
+        // WM_NCPAINT => log::info!(""),
+        // WM_NCPOINTERDOWN => log::info!(""),
+        // WM_NCPOINTERUP => log::info!(""),
+        // WM_NCPOINTERUPDATE => log::info!(""),
+        // WM_NCRBUTTONDBLCLK => log::info!(""),
+        // WM_NCRBUTTONDOWN => log::info!(""),
+        // WM_NCRBUTTONUP => log::info!(""),
+        // WM_NCXBUTTONDBLCLK => log::info!(""),
+        // WM_NCXBUTTONDOWN => log::info!(""),
+        // WM_NCXBUTTONUP => log::info!(""),
+        // WM_NEXTDLGCTL => log::info!(""),
+        // WM_NEXTMENU => log::info!(""),
+        // WM_NOTIFY => log::info!(""),
+        // WM_NOTIFYFORMAT => log::info!(""),
+        // WM_NULL => log::info!(""),
+        // WM_PAINT => log::info!(""),
+        // WM_PAINTCLIPBOARD => log::info!(""),
+        // WM_PAINTICON => log::info!(""),
+        // WM_PALETTECHANGED => log::info!(""),
+        // WM_PALETTEISCHANGING => log::info!(""),
+        // WM_PARENTNOTIFY => log::info!(""),
+        // WM_PASTE => log::info!(""),
+        // WM_PENWINFIRST => log::info!(""),
+        // WM_PENWINLAST => log::info!(""),
+        // WM_POINTERACTIVATE => log::info!(""),
+        // WM_POINTERCAPTURECHANGED => log::info!(""),
+        // WM_POINTERDEVICECHANGE => log::info!(""),
+        // WM_POINTERDEVICEINRANGE => log::info!(""),
+        // WM_POINTERDEVICEOUTOFRANGE => log::info!(""),
+        // WM_POINTERDOWN => log::info!(""),
+        // WM_POINTERENTER => log::info!(""),
+        // WM_POINTERHWHEEL => log::info!(""),
+        // WM_POINTERLEAVE => log::info!(""),
+        // WM_POINTERROUTEDAWAY => log::info!(""),
+        // WM_POINTERROUTEDRELEASED => log::info!(""),
+        // WM_POINTERROUTEDTO => log::info!(""),
+        // WM_POINTERUP => log::info!(""),
+        // WM_POINTERUPDATE => log::info!(""),
+        // WM_POINTERWHEEL => log::info!(""),
+        // WM_POWER => log::info!(""),
+        // WM_POWERBROADCAST => log::info!(""),
+        // WM_PRINT => log::info!(""),
+        // WM_PRINTCLIENT => log::info!(""),
+        // WM_QUERYDRAGICON => log::info!(""),
+        // WM_QUERYENDSESSION => log::info!(""),
+        // WM_QUERYNEWPALETTE => log::info!(""),
+        // WM_QUERYOPEN => log::info!(""),
+        // WM_QUERYUISTATE => log::info!(""),
+        // WM_QUEUESYNC => log::info!(""),
+        // WM_QUIT => log::info!(""),
+        // WM_RBUTTONDBLCLK => log::info!(""),
+        // WM_RBUTTONDOWN => log::info!(""),
+        // WM_RBUTTONUP => log::info!(""),
+        // WM_RENDERALLFORMATS => log::info!(""),
+        // WM_RENDERFORMAT => log::info!(""),
+        // WM_SETCURSOR => log::info!(""),
+        // WM_SETFOCUS => log::info!(""),
+        // WM_SETFONT => log::info!(""),
+        // WM_SETHOTKEY => log::info!(""),
+        // WM_SETICON => log::info!(""),
+        // WM_SETREDRAW => log::info!(""),
+        // WM_SETTEXT => log::info!(""),
+        // WM_SETTINGCHANGE => log::info!(""),
+        // WM_SHOWWINDOW => log::info!(""),
+        // WM_SIZE => log::info!(""),
+        // WM_SIZECLIPBOARD => log::info!(""),
+        // WM_SIZING => log::info!(""),
+        // WM_SPOOLERSTATUS => log::info!(""),
+        // WM_STYLECHANGED => log::info!(""),
+        // WM_STYLECHANGING => log::info!(""),
+        // WM_SYNCPAINT => log::info!(""),
+        // WM_SYSCHAR => log::info!(""),
+        // WM_SYSCOLORCHANGE => log::info!(""),
+        // WM_SYSCOMMAND => log::info!(""),
+        // WM_SYSDEADCHAR => log::info!(""),
+        // WM_SYSKEYDOWN => log::info!(""),
+        // WM_SYSKEYUP => log::info!(""),
+        // WM_TABLET_FIRST => log::info!(""),
+        // WM_TABLET_LAST => log::info!(""),
+        // WM_TCARD => log::info!(""),
+        // WM_THEMECHANGED => log::info!(""),
+        // WM_TIMECHANGE => log::info!(""),
+        // WM_TIMER => log::info!(""),
+        // WM_TOOLTIPDISMISS => log::info!(""),
+        // WM_TOUCH => log::info!(""),
+        // WM_TOUCHHITTESTING => log::info!(""),
+        // WM_UNDO => log::info!(""),
+        // WM_UNICHAR => log::info!(""),
+        // WM_UNINITMENUPOPUP => log::info!(""),
+        // WM_UPDATEUISTATE => log::info!(""),
+        // WM_USER => log::info!(""),
+        // WM_USERCHANGED => log::info!(""),
+        // WM_VKEYTOITEM => log::info!(""),
+        // WM_VSCROLL => log::info!(""),
+        // WM_VSCROLLCLIPBOARD => log::info!(""),
+        // WM_WINDOWPOSCHANGED => log::info!(""),
+        // WM_WINDOWPOSCHANGING => log::info!(""),
+        // WM_WININICHANGE => log::info!(""),
+        // WM_WTSSESSION_CHANGE => log::info!(""),
+        // WM_XBUTTONDBLCLK => log::info!(""),
+        // WM_XBUTTONDOWN => log::info!(""),
+        // WM_XBUTTONUP => log::info!(""),
         _ => {
             print_msg("");
-            // // println!("[{:x?}] 0x{:04x}, {}, {}", hwnd.0, msg, wParam.0, lParam.0);
-            // // println!("Message {:?} received", msg);
+            // // log::info!("[{:x?}] 0x{:04x}, {}, {}", hwnd.0, msg, wParam.0, lParam.0);
+            // // log::info!("Message {:?} received", msg);
             // return DefWindowProcW(hwnd, msg, wParam, lParam);
         },
     }
@@ -1226,58 +1265,94 @@ impl WndProc for WNDPROC {
     }
 }
 
-/// Sent to a window when the size or position of the window is about to change. An application can use this message to override the window's default maximized size and position, or its default minimum or maximum tracking size.
+/// Sent to a window when the size or position of the window is about to change. An application can use this
+/// message to override the window's default maximized size and position, or its default minimum or maximum
+/// tracking size.
 fn wm_getminmaxinfo(hwnd: HWND, lParam: LPARAM) -> Result<MINMAXINFO> {
     if lParam == LPARAM(0) {
         return Err(Error::new(unsafe{GetLastError().into()}, "lParam is null"));
     }
     let minmaxinfo = unsafe { &mut *(lParam.0 as *mut MINMAXINFO) }.clone();
-    if DBG_OPTS.show_wm_getminmaxinfo {
-        log::trace!("wm_getminmaxinfo: {:?}", minmaxinfo);
+    if DBG_OPTS.show_wm_getminmaxinfo & false {
+        // log::trace!("wm_getminmaxinfo: {:?}", minmaxinfo);
+        log::trace!("wm_getminmaxinfo: MINMAXINFO {{");
+        log::trace!("   ptReserved:     {{ {}, {} }},", minmaxinfo.ptReserved.x, minmaxinfo.ptReserved.y);
+        log::trace!("   ptMaxSize:      {{ {}, {} }},", minmaxinfo.ptMaxSize.x, minmaxinfo.ptMaxSize.y);
+        log::trace!("   ptMaxPosition:  {{ {}, {} }},", minmaxinfo.ptMaxPosition.x, minmaxinfo.ptMaxPosition.y);
+        log::trace!("   ptMinTrackSize: {{ {}, {} }},", minmaxinfo.ptMinTrackSize.x, minmaxinfo.ptMinTrackSize.y);
+        log::trace!("   ptMaxTrackSize: {{ {}, {} }},", minmaxinfo.ptMaxTrackSize.x, minmaxinfo.ptMaxTrackSize.y);
+        log::trace!("}}");
     }
 
     Ok(minmaxinfo)
 }
 
-
-
-/// Sent prior to the WM_CREATE message when a window is first created.
-fn wm_nccreate(hwnd: HWND, lParam: LPARAM) -> Result<CREATESTRUCTW> {
-    if lParam == LPARAM(0) {
-        eprintln!("lParam is null");
-        return Err(Error::new(unsafe{GetLastError().into()}, "lParam is null"));
+fn parse_string_or_atom(s: PCWSTR) -> Option<String> {
+    
+    if s.is_null() {
+        return None;
     }
-    let cs = unsafe { &mut *(lParam.0 as *mut CREATESTRUCTW) }.clone();
-
-    if DBG_OPTS.show_wm_nccreate {
-        log::trace!("wm_nccreate: {:?}", cs);
-
-        log::trace!("location  : {} x {}", cs.x, cs.y);
-        log::trace!("dimensions: {} x {}", cs.cx, cs.cy);
-        // log::trace!("style     : 0x{:x}", createstruct.style);
-        let style = WINDOW_STYLE(cs.style as u32);
-        log::trace!("style     : {:?}", style);
-        log::trace!("style (x) : {:?}", cs.dwExStyle);
-        if cs.lpszName.is_null() {
-            log::trace!("name      : null");
-        } else {
-            let name = unsafe{cs.lpszName.display()}.to_string();
-            log::trace!("name      : {}", name);
+    let possible_atom = s.0 as usize;
+    // println!("Possible Atom? 0x{:x}", possible_atom);
+    if (possible_atom as u32) < 0x10000 {
+        // panic!("Atom: 0x{:x}", possible_atom);
+        // lookup the atom's string
+        return Some(format!("0x{:04x}", possible_atom as u32));
+    }
+    let mut chars = vec![];
+    unsafe {
+        let mut i = 0;
+        while *s.0.offset(i) != 0 {
+            chars.push(*s.0.offset(i));
+            i += 1;
         }
-
-        // // TODO: the following crashes if the class is an ATOM
-        // let class = unsafe{cs.lpszClass.display()}.to_string();
-        // // let class = cs.lpszClass;
-        // // let class = if class.is_null() {
-        // //     "null".to_string()
-        // // } else {
-        // //     unsafe { String::from_utf16_lossy(std::slice::from_raw_parts(class.0, 256)) }
-        // // };
-        // log::trace!("class     : {}", class);
     }
-
-    Ok(cs)
+    if chars.is_empty() {
+        None
+    } else {
+        Some(String::from_utf16_lossy(&chars))
+    }
+    // unsafe { String::from_utf16_lossy(std::slice::from_raw_parts(s.0, 256)) }
 }
+
+
+// /// Sent prior to the WM_CREATE message when a window is first created.
+// fn wm_nccreate(hwnd: HWND, lParam: LPARAM) -> Result<CREATESTRUCTW> {
+//     if lParam == LPARAM(0) {
+//         eprintln!("lParam is null");
+//         return Err(Error::new(unsafe{GetLastError().into()}, "lParam is null"));
+//     }
+//     let cs = unsafe { &mut *(lParam.0 as *mut CREATESTRUCTW) }.clone();
+// 
+//     let terse = false;
+//     if DBG_OPTS.show_wm_nccreate {
+//         if terse {
+//             log::trace!("wm_nccreate: {:?}", cs);
+//         } else {
+// 
+//             log::trace!("wm_nccreate: CREATESTRUCTW {{");
+//             log::trace!("  lpCreateParams:     0x{:08x},", cs.lpCreateParams as usize);
+//             log::trace!("  hInstance:          {:?}", cs.hInstance);
+//             log::trace!("  hMenu:              {:?}", cs.hMenu);
+//             log::trace!("  hwndParent:         {:?}", cs.hwndParent);
+//             log::trace!("  x, y, cx, cy:       {{ pos: ({}, {}) sz: ({}, {}) }}", cs.x, cs.y, cs.cx, cs.cy);
+//             log::trace!("  style:              {:?}", WINDOW_STYLE(cs.style as u32));
+//             log::trace!("  ext. style:         {:?}", cs.dwExStyle);
+//             match parse_string_or_atom(cs.lpszName) {
+//                 Some(s) => log::trace!("  name:               {}", s),
+//                 None            => log::trace!("  name:               None"),
+//             }
+//             match parse_string_or_atom(cs.lpszClass) {
+//                 Some(s) => log::trace!("  class:              {}", s),
+//                 None            => log::trace!("  class:              None"),
+//             }
+//             log::trace!("}}");
+// 
+//         }
+//     }
+// 
+//     Ok(cs)
+// }
 
 fn wm_nccalcsize(hwnd: HWND, lParam: LPARAM) -> Result<RECT> {
     if lParam == LPARAM(0) {
@@ -1291,42 +1366,105 @@ fn wm_nccalcsize(hwnd: HWND, lParam: LPARAM) -> Result<RECT> {
     Ok(rect)
 }
 
-fn wm_create(hwnd: HWND, lParam: LPARAM) -> Result<CREATESTRUCTW> {
+fn wm_create(msg: u32, hwnd: HWND, lParam: LPARAM) -> Result<CREATESTRUCTW> {
+
     if lParam == LPARAM(0) {
-        log::trace!("lParam is null");
+        eprintln!("lParam is null");
         return Err(Error::new(unsafe{GetLastError().into()}, "lParam is null"));
     }
     let cs = unsafe { &mut *(lParam.0 as *mut CREATESTRUCTW) }.clone();
-    if DBG_OPTS.show_wm_create {
-        log::trace!("wm_create: {:?}", cs);
-        if cs.hwndParent.is_invalid() {
-            log::trace!("Creating root window");
-        }
-        log::trace!("location  : {} x {}", cs.x, cs.y);
-        log::trace!("dimensions: {} x {}", cs.cx, cs.cy);
-        // log::trace!("style     : 0x{:x}", createstruct.style);
-        let style = WINDOW_STYLE(cs.style as u32);
-        log::trace!("style     : {:?}", style);
-        log::trace!("style (x) : {:?}", cs.dwExStyle);
-        if cs.lpszName.is_null() {
-            log::trace!("name      : null");
-        } else {
-            let name = unsafe{cs.lpszName.display()}.to_string();
-            log::trace!("name      : {}", name);
-        }
 
-        // // TODO: the following crashes if the class is an ATOM
-        // let class = unsafe{cs.lpszClass.display()}.to_string();
-        // // let class = cs.lpszClass;
-        // // let class = if class.is_null() {
-        // //     "null".to_string()
-        // // } else {
-        // //     unsafe { String::from_utf16_lossy(std::slice::from_raw_parts(class.0, 256)) }
-        // // };
-        // log::trace!("class     : {}", class);
+    let (dbg_flag, wm_fn_name) = match msg {
+        WM_CREATE => (DBG_OPTS.show_wm_create, "wm_create"),
+        WM_NCCREATE => (DBG_OPTS.show_wm_nccreate, "wm_nccreate"),
+        _ => unreachable!("wm_create called with invalid message: 0x{:x} {}", msg, msg),
+    };
+
+    let terse = false;
+    if dbg_flag {
+        if terse {
+            log::trace!("{}: {:?}", wm_fn_name, cs);
+        } else {
+
+            log::trace!("{}: CREATESTRUCTW {{", wm_fn_name);
+            log::trace!("  lpCreateParams:     0x{:08x},", cs.lpCreateParams as usize);
+            log::trace!("  hInstance:          {:?}", cs.hInstance);
+            log::trace!("  hMenu:              {:?}", cs.hMenu);
+            log::trace!("  hwndParent:         {:?}", cs.hwndParent);
+            log::trace!("  x, y, cx, cy:       pos: ({}, {}) sz: ({}, {})", cs.x, cs.y, cs.cx, cs.cy);
+            log::trace!("  style:              {:?}", WINDOW_STYLE(cs.style as u32));
+            log::trace!("  ext. style:         {:?}", cs.dwExStyle);
+            match parse_string_or_atom(cs.lpszName) {
+                Some(s) => log::trace!("  name:               {}", s),
+                None            => log::trace!("  name:               None"),
+            }
+            match parse_string_or_atom(cs.lpszClass) {
+                Some(s) => log::trace!("  class:              {}", s),
+                None            => log::trace!("  class:              None"),
+            }
+            log::trace!("}}");
+
+        }
     }
 
     Ok(cs)
+
+    // if lParam == LPARAM(0) {
+    //     log::trace!("lParam is null");
+    //     return Err(Error::new(unsafe{GetLastError().into()}, "lParam is null"));
+    // }
+    // let cs = unsafe { &mut *(lParam.0 as *mut CREATESTRUCTW) }.clone();
+    // if DBG_OPTS.show_wm_create {
+    //     // log::trace!("wm_create: {:?}", cs);
+    //     // if cs.hwndParent.is_invalid() {
+    //     //     log::trace!("Creating root window");
+    //     // }
+
+    //     log::trace!("wm_create: {:?}", cs);
+
+    //     log::trace!("wm_create: CREATESTRUCTW {{");
+    //     log::trace!("  lpCreateParams:     0x{:08x},", cs.lpCreateParams as usize);
+    //     log::trace!("  hInstance:          {:?}", cs.hInstance);
+    //     log::trace!("  hMenu:              {:?}", cs.hMenu);
+    //     log::trace!("  hwndParent:         {:?}", cs.hwndParent);
+    //     log::trace!("  x, y, cx, cy:       {{ pos: ({}, {}) sz: ({}, {}) }}", cs.x, cs.y, cs.cx, cs.cy);
+    //     log::trace!("  style:              {:?}", WINDOW_STYLE(cs.style as u32));
+    //     log::trace!("  ext. style:         {:?}", cs.dwExStyle);
+    //     match parse_string_or_atom(cs.lpszName) {
+    //         Some(s) => log::trace!("  name:               {}", s),
+    //         None            => log::trace!("  name:               None"),
+    //     }
+    //     match parse_string_or_atom(cs.lpszClass) {
+    //         Some(s) => log::trace!("  class:              {}", s),
+    //         None            => log::trace!("  class:              None"),
+    //     }
+    //     log::trace!("}}");
+
+    //     // log::trace!("location  : {} x {}", cs.x, cs.y);
+    //     // log::trace!("dimensions: {} x {}", cs.cx, cs.cy);
+    //     // // log::trace!("style     : 0x{:x}", createstruct.style);
+    //     // let style = WINDOW_STYLE(cs.style as u32);
+    //     // log::trace!("style     : {:?}", style);
+    //     // log::trace!("style (x) : {:?}", cs.dwExStyle);
+    //     // if cs.lpszName.is_null() {
+    //     //     log::trace!("name      : null");
+    //     // } else {
+    //     //     let name = unsafe{cs.lpszName.display()}.to_string();
+    //     //     log::trace!("name      : {}", name);
+    //     // }
+
+    //     // // // TODO: the following crashes if the class is an ATOM
+    //     // // let class = unsafe{cs.lpszClass.display()}.to_string();
+    //     // // // let class = cs.lpszClass;
+    //     // // // let class = if class.is_null() {
+    //     // // //     "null".to_string()
+    //     // // // } else {
+    //     // // //     unsafe { String::from_utf16_lossy(std::slice::from_raw_parts(class.0, 256)) }
+    //     // // // };
+    //     // // log::trace!("class     : {}", class);
+    // }
+
+    // Ok(cs)
 }
 
 
@@ -1408,7 +1546,7 @@ fn wm_ncactivate(hwnd: HWND, wParam: WPARAM, lParam: LPARAM) {
 }
 
 fn wm_geticon(hwnd: HWND, wParam: WPARAM, lParam: LPARAM) {
-    if DBG_OPTS.show_wm_geticon || lParam.0 != 0 {
+    if DBG_OPTS.show_wm_geticon {
         if wParam.0 == ICON_SMALL as usize {
             log::trace!("Message requesting small icon ({} dpi)", lParam.0);
         } else if wParam.0 == ICON_BIG as usize {
@@ -1577,6 +1715,7 @@ fn wm_windowposchanged(hwnd: HWND, lParam: LPARAM) {
 }
 
 fn wm_paint(hwnd: HWND) {
+    _ = unsafe{ValidateRect(hwnd, None)};
     if DBG_OPTS.show_wm_paint {
         if hwnd.is_invalid() {
             log::trace!("wm_paint: hWND: null");
@@ -1584,6 +1723,15 @@ fn wm_paint(hwnd: HWND) {
         } else {
             log::trace!("wm_paint: hWND: 0x{:08p}", hwnd.0);
         }
+    }
+}
+
+fn wm_nchittest(hwnd: HWND, wParam: WPARAM, lParam: LPARAM) {
+    if DBG_OPTS.show_wm_nchittest {
+        let x = lParam.0 as i32;
+        let y = (lParam.0 >> 16) as i32;
+        log::trace!("wm_nchittest: x: {}, y: {}", x, y);
+        log::trace!("wm_nchittest: wParam: 0x{:x}, lParam: 0x{:x}", wParam.0, lParam.0);
     }
 }
 

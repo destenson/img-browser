@@ -58,6 +58,7 @@ shell = ["windows/Win32_UI_Shell_Common"]
 
 
 [dependencies]
+chrono = "0.4.39"
 defer = "0.2.1"
 env_logger = "0.11.6"
 image = "0.25.5"
