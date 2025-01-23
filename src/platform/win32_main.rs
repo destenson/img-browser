@@ -188,24 +188,6 @@ pub fn main() -> Result<()> {
             },
             WM_CREATE => {
                 log::info!("WM_CREATE");
-
-                // // a. create a device context for the window
-                // let hdc = unsafe { GetDC(window) };
-                // if hdc.is_invalid() {
-                //     panic!("Failed to get device context");
-                // }
-                // defer!({
-                //     let r = unsafe {ReleaseDC(window, hdc)};
-                //     if r == 0 {
-                //         panic!("Failed to release device context");
-                //     }
-                // });
-
-                // resize the window
-                let r = unsafe {SetWindowPos(window, HWND_TOP, 0, 0, width, height, SWP_NOMOVE | SWP_NOZORDER)};
-                if r.is_err() {
-                    panic!("Failed to set window position");
-                }
             },
             WM_PAINT => {
                 log::info!("{:03} WM_PAINT {} {:?} {:?} {:?}",
@@ -840,8 +822,26 @@ unsafe extern "system" fn window_proc(
         }
         WM_CREATE => {
             match wm_create(WM_CREATE, hwnd, lParam) {
-                Ok(_cs) => if DBG_OPTS.show_wm_create {
+                Ok(cs) => if DBG_OPTS.show_wm_create {
                     // print_msg("WM_CREATE");
+                    let mut rect = RECT {
+                        left: 0,
+                        top: 0,
+                        right: 467,
+                        bottom: 318,
+                    };
+                    let style = WINDOW_STYLE(cs.style as u32);
+                    let exstyle = cs.dwExStyle;
+                    AdjustWindowRectEx(&mut rect, style, !cs.hMenu.is_invalid(), exstyle);
+                    SetWindowPos(
+                        hwnd,
+                        HWND(std::ptr::null_mut()),
+                        0,
+                        0,
+                        rect.right - rect.left,
+                        rect.bottom - rect.top,
+                        SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE,
+                    );
                 },
                 Ok(_) => {},
                 Err(e) => {
