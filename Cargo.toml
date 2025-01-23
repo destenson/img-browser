@@ -24,11 +24,11 @@ name = "img-browser"
 version = "0.1.0"
 
 [features]
+default = ["jpeg", "png", "webp", "gdi"]
+# default = []
 avif = ["image/avif"]
 avif-native = ["image/avif-native"]
 bmp = ["image/bmp"]
-# default = []
-default = ["jpeg", "png", "webp", "gdi"]
 gif = ["image/gif"]
 hdr = ["image/hdr"]
 ico = ["image/ico"]
@@ -56,7 +56,6 @@ globalization = ["windows/Win32_Globalization"]
 storage-pickers-provider = ["windows/Storage_Pickers_Provider"]
 shell = ["windows/Win32_UI_Shell_Common"]
 
-
 [dependencies]
 chrono = "0.4.39"
 defer = "0.2.1"
@@ -64,11 +63,14 @@ env_logger = "0.11.6"
 image = "0.25.5"
 log = { version = "0.4.25", features = ["std", "release_max_level_trace"] }
 opencv = "0.94"
+rand = { version = "0.8" }
+windows-core = { version = "0.58.0", path = "../Microsoft--windows-rs/crates/libs/core" }
 # dav1d = { version = "0.1.0", features = ["decode"] }
 # emulsion = { path = "vendor/emulsion" }
 
 [dependencies.windows]
 version = "0.58"
+path = "../Microsoft--windows-rs/crates/libs/windows"
 features = [
     # the following are helpful for popping up a window or message box
     "Data_Xml_Dom",
@@ -100,4 +102,26 @@ features = [
     "Win32_System_Com",
     # inputs
     "Win32_UI_Input_Ime",
+    # Networking
+    "Win32_Networking",
+    "Win32_Networking_BackgroundIntelligentTransferService",
+    # DirectX
+    "Foundation_Numerics",
+    "Win32_Graphics_Direct2D_Common",
+    "Win32_Graphics_Direct3D",
+    "Win32_Graphics_Direct3D11",
+    "Win32_Graphics_DirectComposition",
+    "Win32_Graphics_DirectWrite",
+    "Win32_Graphics_Dxgi_Common",
+    "Win32_Graphics_Gdi",
+    "Win32_Graphics_Imaging_D2D",
+    "Win32_System_Com",
+    "Win32_System_LibraryLoader",
+    "Win32_System_Performance",
+    "Win32_System_SystemInformation",
+    "Win32_System_SystemServices",
+    "Win32_UI_Animation",
+    "Win32_UI_HiDpi",
+    "Win32_UI_WindowsAndMessaging",
+    "Win32_UI_Shell",
 ]
