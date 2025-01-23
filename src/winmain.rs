@@ -17,10 +17,12 @@ use windows::{
 const CARD_ROWS: usize = 3;
 const CARD_COLUMNS: usize = 4;
 const CARD_MARGIN: f32 = 15.0;
-const CARD_WIDTH: f32 = 120.0;
-const CARD_HEIGHT: f32 = 150.0;
-const WINDOW_WIDTH: f32 = CARD_COLUMNS as f32 * (CARD_WIDTH + CARD_MARGIN) + CARD_MARGIN;
-const WINDOW_HEIGHT: f32 = CARD_ROWS as f32 * (CARD_HEIGHT + CARD_MARGIN) + CARD_MARGIN;
+// const CARD_WIDTH: f32 = 120.0;
+// const CARD_HEIGHT: f32 = 150.0;
+// const WINDOW_WIDTH: f32 = CARD_COLUMNS as f32 * (CARD_WIDTH + CARD_MARGIN) + CARD_MARGIN;
+// const WINDOW_HEIGHT: f32 = CARD_ROWS as f32 * (CARD_HEIGHT + CARD_MARGIN) + CARD_MARGIN;
+// const CARD_WIDTH: f32 = (WINDOW_WIDTH - CARD_MARGIN) / CARD_COLUMNS as f32 - CARD_MARGIN;
+// const CARD_HEIGHT: f32 = (WINDOW_HEIGHT - CARD_MARGIN) / CARD_ROWS as f32 - CARD_MARGIN;
 
 #[derive(PartialEq)]
 enum Status {
@@ -39,6 +41,8 @@ struct Card {
 
 struct Window {
     handle: HWND,
+    dim: (f32, f32),
+    card_dim: (f32, f32),
     dpi: (f32, f32),
     format: IDWriteTextFormat,
     image: IWICFormatConverter,
@@ -96,12 +100,23 @@ impl Window {
 
             let library =
                 CoCreateInstance(&UIAnimationTransitionLibrary2, None, CLSCTX_INPROC_SERVER)?;
+            
+            let (image, w, h) = create_image()?;
+            let dim = (w as f32, h as f32);
+
+            // let card_width = (dim.0 - (CARD_COLUMNS as f32 + 1.0) * CARD_MARGIN) / CARD_COLUMNS as f32;
+            // let card_height = (dim.1 - (CARD_ROWS as f32 + 1.0) * CARD_MARGIN) / CARD_ROWS as f32;
+            let card_width: f32 = (dim.0 - CARD_MARGIN as f32) / CARD_COLUMNS as f32 - CARD_MARGIN;
+            let card_height: f32 = (dim.1 - CARD_MARGIN as f32) / CARD_ROWS as f32 - CARD_MARGIN;
+            let card_dim = (card_width, card_height);
 
             Ok(Window {
                 handle: Default::default(),
+                dim,
+                card_dim,
                 dpi: (0.0, 0.0),
-                format: create_text_format()?,
-                image: create_image()?,
+                format: create_text_format(card_height)?,
+                image,
                 manager,
                 library,
                 first: None,
@@ -141,20 +156,20 @@ impl Window {
             )?;
 
             let bitmap = dc.CreateBitmapFromWicBitmap(&self.image, None)?;
-            let width = logical_to_physical(CARD_WIDTH, self.dpi.0);
-            let height = logical_to_physical(CARD_HEIGHT, self.dpi.1);
-
+            let width = logical_to_physical(self.dim.0, self.dpi.0);
+            let height = logical_to_physical(self.dim.1, self.dpi.1);
+            
             for row in 0..CARD_ROWS {
                 for column in 0..CARD_COLUMNS {
                     let card = &mut self.cards[row * CARD_COLUMNS + column];
 
                     card.offset = (
                         logical_to_physical(
-                            column as f32 * (CARD_WIDTH + CARD_MARGIN) + CARD_MARGIN,
+                            column as f32 * (self.card_dim.0 + CARD_MARGIN) + CARD_MARGIN,
                             self.dpi.0,
                         ),
                         logical_to_physical(
-                            row as f32 * (CARD_HEIGHT + CARD_MARGIN) + CARD_MARGIN,
+                            row as f32 * (self.card_dim.1 + CARD_MARGIN) + CARD_MARGIN,
                             self.dpi.1,
                         ),
                     );
@@ -175,11 +190,11 @@ impl Window {
 
                     let front_surface = create_surface(&desktop, width, height)?;
                     front_visual.SetContent(&front_surface)?;
-                    draw_card_front(&front_surface, card.value, &self.format, &brush, self.dpi)?;
+                    draw_card_front(&front_surface, card.value, &self.format, &brush, self.card_dim, self.dpi)?;
 
                     let back_surface = create_surface(&desktop, width, height)?;
                     back_visual.SetContent(&back_surface)?;
-                    draw_card_back(&back_surface, &bitmap, card.offset, self.dpi)?;
+                    draw_card_back(&back_surface, &bitmap, card.offset, self.card_dim, self.dpi)?;
 
                     let rotation = desktop.CreateRotateTransform3D()?;
 
@@ -189,8 +204,8 @@ impl Window {
 
                     rotation.SetAxisZ2(0.0)?;
                     rotation.SetAxisY2(1.0)?;
-                    create_effect(&desktop, &front_visual, &rotation, true, self.dpi)?;
-                    create_effect(&desktop, &back_visual, &rotation, false, self.dpi)?;
+                    create_effect(&desktop, &front_visual, &rotation, true, self.card_dim, self.dpi)?;
+                    create_effect(&desktop, &back_visual, &rotation, false, self.card_dim, self.dpi)?;
                     card.rotation = Some(rotation);
                 }
             }
@@ -201,20 +216,22 @@ impl Window {
         }
     }
 
+    #[inline]
     fn effective_window_size(&self) -> Result<(i32, i32)> {
-        let mut rect = RECT {
-            left: 0,
-            top: 0,
-            right: logical_to_physical(WINDOW_WIDTH, self.dpi.0) as i32,
-            bottom: logical_to_physical(WINDOW_HEIGHT, self.dpi.1) as i32,
-        };
+        effective_window_size(self.handle, self.dim, self.dpi)
+        // let mut rect = RECT {
+        //     left: 0,
+        //     top: 0,
+        //     right: logical_to_physical(WINDOW_WIDTH, self.dpi.0) as i32,
+        //     bottom: logical_to_physical(WINDOW_HEIGHT, self.dpi.1) as i32,
+        // };
 
-        unsafe {AdjustWindowRect(
-                &mut rect,
-                WINDOW_STYLE(GetWindowLongW(self.handle, GWL_STYLE) as u32),
-                false,
-            )}?;
-        Ok((rect.right - rect.left, rect.bottom - rect.top))
+        // unsafe {AdjustWindowRect(
+        //         &mut rect,
+        //         WINDOW_STYLE(GetWindowLongW(self.handle, GWL_STYLE) as u32),
+        //         false,
+        //     )}?;
+        // Ok((rect.right - rect.left, rect.bottom - rect.top))
     }
 
     fn click_handler(&mut self, lparam: LPARAM) -> Result<()> {
@@ -222,8 +239,8 @@ impl Window {
             let x = lparam.0 as u16 as f32;
             let y = (lparam.0 >> 16) as f32;
 
-            let width = logical_to_physical(CARD_WIDTH, self.dpi.0);
-            let height = logical_to_physical(CARD_HEIGHT, self.dpi.1);
+            let width = logical_to_physical(self.card_dim.0, self.dpi.0);
+            let height = logical_to_physical(self.card_dim.1, self.dpi.1);
             let mut next = None;
 
             for (index, card) in self.cards.iter().enumerate() {
@@ -479,7 +496,7 @@ impl Window {
 }
 
 unsafe
-fn create_text_format() -> Result<IDWriteTextFormat> {
+fn create_text_format(card_height: f32) -> Result<IDWriteTextFormat> {
     let factory: IDWriteFactory2 = DWriteCreateFactory(DWRITE_FACTORY_TYPE_SHARED)?;
 
     let format = factory.CreateTextFormat(
@@ -488,7 +505,7 @@ fn create_text_format() -> Result<IDWriteTextFormat> {
         DWRITE_FONT_WEIGHT_NORMAL,
         DWRITE_FONT_STYLE_NORMAL,
         DWRITE_FONT_STRETCH_NORMAL,
-        CARD_HEIGHT / 2.0,
+        card_height / 2.0,
         w!("en"),
     )?;
 
@@ -498,7 +515,7 @@ fn create_text_format() -> Result<IDWriteTextFormat> {
 }
 
 
-fn create_image() -> Result<IWICFormatConverter> {
+fn create_image() -> Result<(IWICFormatConverter, u32, u32)> {
     unsafe {
         let factory: IWICImagingFactory2 =
             CoCreateInstance(&CLSID_WICImagingFactory, None, CLSCTX_INPROC_SERVER)?;
@@ -519,6 +536,10 @@ fn create_image() -> Result<IWICFormatConverter> {
 
         let source = decoder.GetFrame(0)?;
         let image = factory.CreateFormatConverter()?;
+        // GetSize(&self, puiwidth: *mut u32, puiheight: *mut u32)
+        let mut width = 0;
+        let mut height = 0;
+        source.GetSize(&mut width, &mut height)?;
 
         image.Initialize(
             &source,
@@ -529,7 +550,7 @@ fn create_image() -> Result<IWICFormatConverter> {
             WICBitmapPaletteTypeMedianCut,
         )?;
 
-        Ok(image)
+        Ok((image, width, height))
     }
 }
 
@@ -631,11 +652,12 @@ fn create_effect(
     visual: &IDCompositionVisual2,
     rotation: &IDCompositionRotateTransform3D,
     front: bool,
+    card_dim: (f32, f32),
     dpi: (f32, f32),
 ) -> Result<()> {
     unsafe {
-        let width = logical_to_physical(CARD_WIDTH, dpi.0);
-        let height = logical_to_physical(CARD_HEIGHT, dpi.1);
+        let width = logical_to_physical(card_dim.0, dpi.0);
+        let height = logical_to_physical(card_dim.1, dpi.1);
 
         let pre_matrix = Matrix4x4::translation(-width / 2.0, -height / 2.0, 0.0)
             * Matrix4x4::rotation_y(if front { 180.0 } else { 0.0 });
@@ -664,6 +686,7 @@ fn draw_card_front(
     value: u8,
     format: &IDWriteTextFormat,
     brush: &ID2D1SolidColorBrush,
+    card_dim: (f32, f32),
     dpi: (f32, f32),
 ) -> Result<()> {
     unsafe {
@@ -689,8 +712,8 @@ fn draw_card_front(
             &D2D_RECT_F {
                 left: 0.0,
                 top: 0.0,
-                right: CARD_WIDTH,
-                bottom: CARD_HEIGHT,
+                right: card_dim.0,
+                bottom: card_dim.1,
             },
             brush,
             D2D1_DRAW_TEXT_OPTIONS_NONE,
@@ -705,6 +728,7 @@ fn draw_card_back(
     surface: &IDCompositionSurface,
     bitmap: &ID2D1Bitmap1,
     offset: (f32, f32),
+    card_dim: (f32, f32),
     dpi: (f32, f32),
 ) -> Result<()> {
     unsafe {
@@ -728,8 +752,8 @@ fn draw_card_back(
             Some(&D2D_RECT_F {
                 left,
                 top,
-                right: left + CARD_WIDTH,
-                bottom: top + CARD_HEIGHT,
+                right: left + card_dim.0,
+                bottom: top + card_dim.1,
             }),
             None,
         );
@@ -737,6 +761,24 @@ fn draw_card_back(
         surface.EndDraw()
     }
 }
+
+fn effective_window_size(handle: HWND, w_h: (f32, f32), dpi: (f32, f32)) -> Result<(i32, i32)> {
+    let mut rect = RECT {
+        left: 0,
+        top: 0,
+        right: (logical_to_physical(w_h.0, dpi.0) + 0.499999) as i32,
+        bottom: (logical_to_physical(w_h.1, dpi.1) + 0.499999) as i32,
+    };
+
+    unsafe {AdjustWindowRect(
+            &mut rect,
+            WINDOW_STYLE(GetWindowLongW(handle, GWL_STYLE) as u32),
+            false,
+        )}?;
+    Ok((rect.right - rect.left, rect.bottom - rect.top))
+}
+
+// TODO: find out where the 96.0 comes from... is it a magic number?
 
 #[inline]
 fn physical_to_logical(pixel: f32, dpi: f32) -> f32 {
@@ -748,7 +790,6 @@ fn logical_to_physical(pixel: f32, dpi: f32) -> f32 {
     pixel * dpi / 96.0
 }
 
-// TODO: find out where the 96.0 comes from... is it a magic number?
 
 
 
