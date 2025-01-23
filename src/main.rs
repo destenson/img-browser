@@ -12,7 +12,7 @@ use app::App;
 
 fn main() {
 
-    if false {
+    if true {
         winmain::main().expect("winmain::main failed");
     } else {
 

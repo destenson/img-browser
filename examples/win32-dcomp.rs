@@ -15,12 +15,21 @@ use windows::{
 };
 
 const CARD_ROWS: usize = 3;
-const CARD_COLUMNS: usize = 4;
+const CARD_COLUMNS: usize = 6;
 const CARD_MARGIN: f32 = 15.0;
-const CARD_WIDTH: f32 = 120.0;
-const CARD_HEIGHT: f32 = 150.0;
+const CARD_WIDTH: f32 = 150.0;
+const CARD_HEIGHT: f32 = 210.0;
 const WINDOW_WIDTH: f32 = CARD_COLUMNS as f32 * (CARD_WIDTH + CARD_MARGIN) + CARD_MARGIN;
 const WINDOW_HEIGHT: f32 = CARD_ROWS as f32 * (CARD_HEIGHT + CARD_MARGIN) + CARD_MARGIN;
+
+fn main() -> Result<()> {
+    unsafe {
+        CoInitializeEx(None, COINIT_MULTITHREADED).ok()?;
+        SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2)?;
+    }
+    let mut window = Window::new()?;
+    window.run()
+}
 
 #[derive(PartialEq)]
 enum Status {
@@ -202,19 +211,22 @@ impl Window {
     }
 
     fn effective_window_size(&self) -> Result<(i32, i32)> {
-        let mut rect = RECT {
-            left: 0,
-            top: 0,
-            right: logical_to_physical(WINDOW_WIDTH, self.dpi.0) as i32,
-            bottom: logical_to_physical(WINDOW_HEIGHT, self.dpi.1) as i32,
-        };
+        unsafe {
+            let mut rect = RECT {
+                left: 0,
+                top: 0,
+                right: logical_to_physical(WINDOW_WIDTH, self.dpi.0) as i32,
+                bottom: logical_to_physical(WINDOW_HEIGHT, self.dpi.1) as i32,
+            };
 
-        unsafe {AdjustWindowRect(
+            AdjustWindowRect(
                 &mut rect,
                 WINDOW_STYLE(GetWindowLongW(self.handle, GWL_STYLE) as u32),
                 false,
-            )}?;
-        Ok((rect.right - rect.left, rect.bottom - rect.top))
+            )?;
+
+            Ok((rect.right - rect.left, rect.bottom - rect.top))
+        }
     }
 
     fn click_handler(&mut self, lparam: LPARAM) -> Result<()> {
@@ -478,25 +490,25 @@ impl Window {
     }
 }
 
-unsafe
 fn create_text_format() -> Result<IDWriteTextFormat> {
-    let factory: IDWriteFactory2 = DWriteCreateFactory(DWRITE_FACTORY_TYPE_SHARED)?;
+    unsafe {
+        let factory: IDWriteFactory2 = DWriteCreateFactory(DWRITE_FACTORY_TYPE_SHARED)?;
 
-    let format = factory.CreateTextFormat(
-        w!("Candara"),
-        None,
-        DWRITE_FONT_WEIGHT_NORMAL,
-        DWRITE_FONT_STYLE_NORMAL,
-        DWRITE_FONT_STRETCH_NORMAL,
-        CARD_HEIGHT / 2.0,
-        w!("en"),
-    )?;
+        let format = factory.CreateTextFormat(
+            w!("Candara"),
+            None,
+            DWRITE_FONT_WEIGHT_NORMAL,
+            DWRITE_FONT_STYLE_NORMAL,
+            DWRITE_FONT_STRETCH_NORMAL,
+            CARD_HEIGHT / 2.0,
+            w!("en"),
+        )?;
 
-    format.SetTextAlignment(DWRITE_TEXT_ALIGNMENT_CENTER)?;
-    format.SetParagraphAlignment(DWRITE_PARAGRAPH_ALIGNMENT_CENTER)?;
-    Ok(format)
+        format.SetTextAlignment(DWRITE_TEXT_ALIGNMENT_CENTER)?;
+        format.SetParagraphAlignment(DWRITE_PARAGRAPH_ALIGNMENT_CENTER)?;
+        Ok(format)
+    }
 }
-
 
 fn create_image() -> Result<IWICFormatConverter> {
     unsafe {
@@ -738,29 +750,10 @@ fn draw_card_back(
     }
 }
 
-#[inline]
 fn physical_to_logical(pixel: f32, dpi: f32) -> f32 {
     pixel * 96.0 / dpi
 }
 
-#[inline]
 fn logical_to_physical(pixel: f32, dpi: f32) -> f32 {
     pixel * dpi / 96.0
 }
-
-// TODO: find out where the 96.0 comes from... is it a magic number?
-
-
-
-
-pub fn main() -> Result<()> {
-    unsafe {
-        CoInitializeEx(None, COINIT_MULTITHREADED).ok()?;
-        SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2)?;
-    }
-    let mut window = Window::new()?;
-    window.run()
-}
-
-// EOF
-
