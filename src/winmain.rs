@@ -159,6 +159,25 @@ impl Window {
             let width = logical_to_physical(self.dim.0, self.dpi.0);
             let height = logical_to_physical(self.dim.1, self.dpi.1);
             
+            let bg_brush = dc.CreateSolidColorBrush(
+                &D2D1_COLOR_F {
+                    r: 1.0,
+                    g: 1.0,
+                    b: 1.0,
+                    a: 0.0,
+                },
+                None,
+            )?;
+            let bg_rect = D2D_RECT_F {
+                left: 0.0,
+                top: 0.0,
+                right: self.dim.0,
+                bottom: self.dim.1,
+            };
+            let bg_surface = create_surface(&desktop, self.dim.0, self.dim.1)?;
+            root_visual.SetContent(&bg_surface)?;
+            draw_bg(&bg_surface, &bg_brush, bg_rect, self.dpi)?;
+
             for row in 0..CARD_ROWS {
                 for column in 0..CARD_COLUMNS {
                     let card = &mut self.cards[row * CARD_COLUMNS + column];
@@ -568,9 +587,8 @@ fn create_device_3d() -> Result<ID3D11Device> {
             Some(&mut device),
             None,
             None,
-        )
+        )}
         .map(|()| device.unwrap())
-    }
 }
 
 fn create_device_2d(device_3d: &ID3D11Device) -> Result<ID2D1Device> {
@@ -760,6 +778,50 @@ fn draw_card_back(
 
         surface.EndDraw()
     }
+}
+
+fn draw_bg(
+    surface: &IDCompositionSurface,
+    brush: &ID2D1SolidColorBrush,
+    dim: D2D_RECT_F,
+    dpi: (f32, f32)
+) -> Result<()> {
+    
+    unsafe {
+        let mut offset = Default::default();
+        let dc: ID2D1DeviceContext = surface.BeginDraw(None, &mut offset)?;
+        dc.SetDpi(dpi.0, dpi.1);
+
+        // dc.SetTransform(&Matrix3x2::translation(
+        //     physical_to_logical(offset.x as f32, dpi.0),
+        //     physical_to_logical(offset.y as f32, dpi.1),
+        // ));
+
+        // dc.Clear(Some(&D2D1_COLOR_F {
+        //     r: 1.0,
+        //     g: 1.0,
+        //     b: 1.0,
+        //     a: 1.0,
+        // }));
+
+        dc.FillRectangle(&dim, brush);
+        // dc.DrawText(
+        //     &[value as _],
+        //     format,
+        //     &D2D_RECT_F {
+        //         left: 0.0,
+        //         top: 0.0,
+        //         right: card_dim.0,
+        //         bottom: card_dim.1,
+        //     },
+        //     brush,
+        //     D2D1_DRAW_TEXT_OPTIONS_NONE,
+        //     DWRITE_MEASURING_MODE_NATURAL,
+        // );
+
+        surface.EndDraw()
+    }
+
 }
 
 fn effective_window_size(handle: HWND, w_h: (f32, f32), dpi: (f32, f32)) -> Result<(i32, i32)> {

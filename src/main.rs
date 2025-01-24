@@ -9,17 +9,15 @@ use platform::main as platform_main;
 
 use app::App;
 
+pub use app::{Error, Result};
 
 fn main() {
 
-    if true {
+    if false {
         winmain::main().expect("winmain::main failed");
     } else {
 
-        // Initialize the logger
-        logging::initialize_rust_logging();
-        
-        platform_main().expect("win32_main::main failed");//.unwrap();
+        platform_main(std::env::args()).expect("win32_main::main failed");//.unwrap();
             // .map_err(|e| {
             //     eprintln!("Error: {}", e);
             //     Box::new(e)
@@ -35,7 +33,7 @@ fn main_() {
     // TODO: use clap for the args
 
     // Create the app
-    let app = App::new(std::env::args().collect());
+    let app = App::new(std::env::args());
 
     // Run the app
     let result = app.run();

@@ -722,14 +722,6 @@ fn load_image_as_bitmap(img_path: &str) -> (HGDIOBJ, i32, i32) {
 }
 
 
-struct Window {
-    hwnd: HWND,
-    hdc: HDC,
-    hdc_mem: HDC,
-    hbitmap: HBITMAP,
-    width: i32,
-    height: i32,
-}
 
 unsafe extern "system" fn win_msg_proc(hwnd: HWND, msg: u32, w: WPARAM, l: LPARAM) -> LRESULT {
     if hwnd.is_invalid() {
