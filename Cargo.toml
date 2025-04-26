@@ -65,12 +65,12 @@ image ={ version = "0.25.5", path = "../image-rs--image" }
 log = { version = "0.4.25", features = ["std", "release_max_level_trace"] }
 opencv = "0.94"
 rand = { version = "0.8" }
-windows-core = { version = "0.58.0", path = "../Microsoft--windows-rs/crates/libs/core" }
+windows-core = { version = "0.59.0", path = "../Microsoft--windows-rs/crates/libs/core" }
 # dav1d = { version = "0.1.0", features = ["decode"] }
 # emulsion = { path = "vendor/emulsion" }
 
 [dependencies.windows]
-version = "0.58"
+version = "0.59"
 path = "../Microsoft--windows-rs/crates/libs/windows"
 features = [
     # the following are helpful for popping up a window or message box
@@ -101,8 +101,6 @@ features = [
     "Win32_UI_HiDpi",
     "Win32_UI_Controls_RichEdit",
     "Win32_System_Com",
-    # inputs
-    "Win32_UI_Input_Ime",
     # Networking
     "Win32_Networking",
     "Win32_Networking_BackgroundIntelligentTransferService",
@@ -121,8 +119,13 @@ features = [
     "Win32_System_Performance",
     "Win32_System_SystemInformation",
     "Win32_System_SystemServices",
+    # inputs
+    "System",
+    "Win32_UI_Input_Ime",
+    "Win32_UI_Input_KeyboardAndMouse",
     "Win32_UI_Animation",
     "Win32_UI_HiDpi",
     "Win32_UI_WindowsAndMessaging",
     "Win32_UI_Shell",
+    "Win32_UI_Shell_Common",
 ]

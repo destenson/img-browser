@@ -1,8 +1,10 @@
 #![allow(non_snake_case, unused)]
 
 mod main;
+mod dialogs;
 
-use main::run_window_loop;
+pub use dialogs::{open_file_dialog, open_folder_dialog};
+pub use main::run_window_loop;
 
 use windows::Win32::{
     Foundation::{HWND, LPARAM, LRESULT, WPARAM, GetLastError},
@@ -30,9 +32,9 @@ impl Drop for Window {
     fn drop(&mut self) {
         unsafe {
             // Clean up resources in reverse order of creation
-            DeleteObject(self.hbitmap);
+            DeleteObject(self.hbitmap.into());
             DeleteDC(self.hdc_mem);
-            ReleaseDC(self.hwnd, self.hdc);
+            ReleaseDC(Some(self.hwnd), self.hdc);
         }
     }
 }
@@ -53,7 +55,7 @@ impl Window {
         
         // Clean up old bitmap if it exists
         if !self.hbitmap.is_invalid() {
-            unsafe { DeleteObject(self.hbitmap) };
+            unsafe { DeleteObject(self.hbitmap.into()) };
         }
         
         // Convert HGDIOBJ to HBITMAP
@@ -77,8 +79,8 @@ impl super::Platform for Platform {
     
     fn create_window(&self, width: i32, height: i32) -> super::Result<Window> {
         // Get the DC for the screen
-        let hdc = unsafe { GetDC(HWND::default()) };
-        let hdc_mem = unsafe { CreateCompatibleDC(hdc) };
+        let hdc = unsafe { GetDC(None) };
+        let hdc_mem = unsafe { CreateCompatibleDC(Some(hdc)) };
         let hbitmap = unsafe { CreateCompatibleBitmap(hdc, width, height) };
         
         // Create a window struct without initializing the hwnd
@@ -154,11 +156,19 @@ fn load_image_as_bitmap(img_path: &str) -> (HGDIOBJ, i32, i32) {
     let img = image::open(img_path).expect("Failed to load image");
     let (width, height) = img.dimensions();
     log::info!("Loaded image dimensions: {} x {}", width, height);
-    let img = img.to_rgba8();
+    let mut img = img.to_rgba8();
+
+    // Convert from RGBA to BGRA by swapping R and B channels
+    for pixel in img.pixels_mut() {
+        let r = pixel[0];
+        let b = pixel[2];
+        pixel[0] = b;
+        pixel[2] = r;
+    }
     
     // Create a device context for the entire screen
     let hdc_screen = unsafe { GetDC(None) }; // Get the screen's device context
-    let hdc = unsafe { CreateCompatibleDC(hdc_screen) };
+    let hdc = unsafe { CreateCompatibleDC(Some(hdc_screen)) };
 
     // Create a compatible bitmap
     let hbitmap = unsafe {
@@ -184,7 +194,7 @@ fn load_image_as_bitmap(img_path: &str) -> (HGDIOBJ, i32, i32) {
         ..Default::default()
     };
 
-    let prev_bmp = unsafe { SelectObject(hdc, hbitmap) };
+    let prev_bmp = unsafe { SelectObject(hdc, hbitmap.into()) };
 
     let mut bmp_info = BITMAPINFO {
         bmiHeader: bmp_info_header,
@@ -222,7 +232,7 @@ fn load_image_as_bitmap(img_path: &str) -> (HGDIOBJ, i32, i32) {
 
     unsafe {
         let _ = DeleteDC(hdc);
-        ReleaseDC(HWND(std::ptr::null_mut()), hdc_screen);
+        ReleaseDC(None, hdc_screen);
     }
 
     // Return the bitmap handle

@@ -59,9 +59,9 @@ fn main() {
             height/2, 
             width*3/2,
             height*3/2, 
-            HWND(std::ptr::null_mut()),
-            HMENU(std::ptr::null_mut()), 
-            handle_instance, 
+            None,
+            None, 
+            Some(handle_instance.into()), 
             Some(std::ptr::null_mut())
         ).unwrap();
 
@@ -72,7 +72,7 @@ fn main() {
         let _ = UpdateWindow(hwnd);
 
         let mut msg = std::mem::zeroed();
-        while GetMessageW(&mut msg, HWND(std::ptr::null_mut()), 0, 0).into() {
+        while GetMessageW(&mut msg, None, 0, 0).into() {
             let _ = TranslateMessage(&msg);
             DispatchMessageW(&msg);
         }
@@ -96,12 +96,12 @@ unsafe extern "system" fn window_proc(
             let hdc = BeginPaint(hwnd, &mut ps);
             
             if let Some(bitmap) = BITMAP_HANDLE {
-                let hdc_mem = CreateCompatibleDC(hdc);
+                let hdc_mem = CreateCompatibleDC(Some(hdc));
                 let prev_bmp = SelectObject(hdc_mem, bitmap);
 
                 // Use WIDTH and HEIGHT for the dimensions
                 if let (Some(width), Some(height)) = (WIDTH, HEIGHT) {
-                    let bres = BitBlt(hdc, 0, 0, width, height, hdc_mem, 0, 0, SRCCOPY);
+                    let bres = BitBlt(hdc, 0, 0, width, height, Some(hdc_mem), 0, 0, SRCCOPY);
                     if bres.is_err() {
                         println!("BitBlt failed: {}", GetLastError().0);
                     }
@@ -138,7 +138,7 @@ fn load_image_as_bitmap(image_path: &str) -> HGDIOBJ {
     
     // Create a device context for the entire screen
     let hdc_screen = unsafe { GetDC(None) }; // Get the screen's device context
-    let hdc = unsafe { CreateCompatibleDC(hdc_screen) };
+    let hdc = unsafe { CreateCompatibleDC(Some(hdc_screen)) };
 
     // Create a compatible bitmap
     let hbitmap = unsafe {
@@ -164,7 +164,7 @@ fn load_image_as_bitmap(image_path: &str) -> HGDIOBJ {
         ..Default::default()
     };
 
-    let prev_bmp = unsafe { SelectObject(hdc, hbitmap) };
+    let prev_bmp = unsafe { SelectObject(hdc, hbitmap.into()) };
 
     let mut bmp_info = BITMAPINFO {
         bmiHeader: bmp_info_header,
@@ -202,7 +202,7 @@ fn load_image_as_bitmap(image_path: &str) -> HGDIOBJ {
 
     unsafe {
         let _ = DeleteDC(hdc);
-        ReleaseDC(HWND(std::ptr::null_mut()), hdc_screen);
+        ReleaseDC(None, hdc_screen);
     }
 
     // Set global width and height

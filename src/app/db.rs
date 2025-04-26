@@ -8,6 +8,8 @@ use std::io;
 use std::time::{SystemTime, UNIX_EPOCH};
 use std::fs;
 
+use image_file::ImageFile;
+
 use super::fs::{is_supported_image, scan_directory_recursive};
 
 /// Represents a collection of images with associated metadata
