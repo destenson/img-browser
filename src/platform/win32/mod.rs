@@ -36,8 +36,11 @@ impl Drop for Window {
 
 impl Window {
     pub fn show(&self) -> windows::core::Result<()> {
-        unsafe {
-            UpdateWindow(self.hwnd).ok()?;
+        // Only update if we have a valid window handle
+        if !self.hwnd.is_invalid() {
+            unsafe {
+                UpdateWindow(self.hwnd).ok()?;
+            }
         }
         Ok(())
     }
@@ -57,6 +60,10 @@ impl Window {
         
         Ok(())
     }
+    
+    pub fn is_valid(&self) -> bool {
+        !self.hwnd.is_invalid()
+    }
 }
 
 pub struct Platform {}
@@ -71,8 +78,10 @@ impl super::Platform for Platform {
         let hdc_mem = unsafe { CreateCompatibleDC(hdc) };
         let hbitmap = unsafe { CreateCompatibleBitmap(hdc, width, height) };
         
+        // Create a window struct without initializing the hwnd
+        // The actual window will be created in the message loop
         Ok(Window {
-            hwnd: HWND::default(),
+            hwnd: HWND::default(), // This will be set properly in run_window_loop
             hdc,
             hdc_mem,
             hbitmap,
@@ -109,17 +118,9 @@ impl super::Platform for Platform {
             window.load_image(path)?;
         }
         
-        // Show the window
-        window.show()?;
-        
+        // Run the message loop, which will properly create and show the window
         log::info!("Running message loop");
-        match super::win32_main::run_window_loop(window, &mut app) {
-            Ok(_) => log::info!("Message loop exited normally"),
-            Err(e) => log::error!("Message loop failed: {}", e),
-        }
-        
-        log::info!("Exiting");
-        Ok(())
+        self.message_loop(window, &mut app)
     }
 }
 

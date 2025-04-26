@@ -35,7 +35,7 @@ pub fn run_window_loop(mut window: Window, app: &mut App) -> windows::core::Resu
         let app_ptr = app as *mut App as *mut c_void;
         
         // Create window
-        window.hwnd = CreateWindowExA(
+        let hwnd = CreateWindowExA(
             WS_EX_OVERLAPPEDWINDOW,
             window_class,
             s!("Image Browser"),
@@ -50,12 +50,17 @@ pub fn run_window_loop(mut window: Window, app: &mut App) -> windows::core::Resu
             Some(&window as *const _ as *const c_void),
         )?;
 
-        if window.hwnd.is_invalid() {
+        if hwnd.is_invalid() {
             return Err(Error::from_win32());
         }
+        
+        // Set the window handle in our Window struct
+        window.hwnd = hwnd;
 
         // Store window pointer in the window's user data
         SetWindowLongPtrA(window.hwnd, GWLP_USERDATA, &window as *const _ as isize);
+        
+        log::info!("Window created successfully with handle: {:?}", window.hwnd.0);
 
         // Show window
         ShowWindow(window.hwnd, SW_SHOWNORMAL).ok()?;
