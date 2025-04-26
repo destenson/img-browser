@@ -1,5 +1,8 @@
 #![allow(non_snake_case, unused)]
 
+mod main;
+
+use main::run_window_loop;
 
 use windows::Win32::{
     Foundation::{HWND, LPARAM, LRESULT, WPARAM, GetLastError},
@@ -92,7 +95,7 @@ impl super::Platform for Platform {
     
     fn message_loop(&self, window: Window, app: &mut Self::App) -> super::Result<()> {
         // Call the window loop function from win32_main.rs
-        Ok(super::win32_main::run_window_loop(window, app)?)
+        Ok(run_window_loop(window, app)?)
     }
     
     fn run(&self, app: crate::App) -> super::Result<()> {

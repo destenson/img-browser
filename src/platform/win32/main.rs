@@ -8,7 +8,7 @@ use windows::{
     },
 };
 
-use super::win32::Window;
+use crate::platform::win32::Window;
 use crate::App;
 
 pub fn run_window_loop(mut window: Window, app: &mut App) -> windows::core::Result<()> {
