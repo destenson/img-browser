@@ -1,8 +1,9 @@
 pub mod config;
+pub mod db;
 pub mod error;
+pub mod fs;
 pub mod settings;
 pub mod state;
-
 
 // Every app has a state and a configuration.
 pub use config::Config;
@@ -11,6 +12,8 @@ pub use state::State;
 pub use error::{Error, Result};
 
 use crate::platform::Platform;
+use std::path::{Path, PathBuf};
+use std::env;
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct App {
@@ -20,24 +23,81 @@ pub struct App {
 
 impl App {
     pub fn new(args: std::env::Args) -> Self {
-        // TODO: use clap
-        // process arguments
+        // Parse command line arguments
         let config = Config::from_args(args);
-        let state = State::default();
-        // create the app
-        App { config, state }
+        let mut state = State::new();
+        
+        // Create the app
+        let mut app = App { config, state };
+        
+        // Initialize file system navigation based on config
+        app.initialize_navigation();
+        
+        app
+    }
+    
+    /// Initialize file system navigation based on config
+    fn initialize_navigation(&mut self) {
+        // If a directory was specified, use it
+        if let Some(dir) = &self.config.directory {
+            if let Err(e) = self.state.set_current_directory(dir) {
+                log::error!("Failed to set directory {}: {}", dir.display(), e);
+            } else {
+                // If gallery mode is enabled, update the view mode
+                if self.config.gallery {
+                    self.state.switch_to_gallery_mode();
+                }
+                
+                // Scan directory for images
+                if let Err(e) = self.state.update_media_db_for_current_directory(self.config.recursive) {
+                    log::error!("Failed to scan directory {}: {}", dir.display(), e);
+                }
+            }
+        } 
+        // If no directory specified but an image path was provided, use its parent directory
+        else if let Some(img_path) = &self.config.image_path {
+            let path = Path::new(img_path);
+            if let Some(parent) = path.parent() {
+                if let Err(e) = self.state.set_current_directory(parent) {
+                    log::error!("Failed to set directory {}: {}", parent.display(), e);
+                } else {
+                    // Scan directory for images
+                    if let Err(e) = self.state.update_media_db_for_current_directory(self.config.recursive) {
+                        log::error!("Failed to scan directory {}: {}", parent.display(), e);
+                    }
+                }
+            }
+        } 
+        // If no directory or image specified, use the current directory
+        else {
+            if let Ok(current_dir) = env::current_dir() {
+                if let Err(e) = self.state.set_current_directory(&current_dir) {
+                    log::error!("Failed to set current directory {}: {}", current_dir.display(), e);
+                } else {
+                    // Scan directory for images
+                    if let Err(e) = self.state.update_media_db_for_current_directory(self.config.recursive) {
+                        log::error!("Failed to scan directory {}: {}", current_dir.display(), e);
+                    }
+                    
+                    // If gallery mode is enabled, update the view mode
+                    if self.config.gallery {
+                        self.state.switch_to_gallery_mode();
+                    }
+                }
+            }
+        }
     }
 }
 
 impl App {
     pub fn run<P: Platform<App = Self, Window = crate::platform::Window>>(self, platform: P) -> Result<()> {
         {
-        let Self { config, state } = &self;
-        
-        // log the configuration
-        log::info!("Config: {:?}", self.config);
-        // log the state
-        log::info!("State: {:?}", self.state);
+            let Self { config, state } = &self;
+            
+            // log the configuration
+            log::info!("Config: {:?}", self.config);
+            // log the state
+            log::info!("State: {:?}", self.state);
         }
         
         platform.run(self)
