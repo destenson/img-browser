@@ -98,9 +98,8 @@ impl super::Platform for Platform {
         Ok(run_window_loop(window, app)?)
     }
     
-    fn run(&self, app: crate::App) -> super::Result<()> {
-        let mut app = app;
-        let crate::App { config, state } = &app;
+    fn run(&self, mut app: crate::App) -> super::Result<()> {
+        let crate::App { ref config, ref mut state } = app;
 
         log::info!("Running on Windows");
         log::info!("Config: {:?}", config);
@@ -111,14 +110,35 @@ impl super::Platform for Platform {
             let _ = SetProcessDpiAwareness(PROCESS_PER_MONITOR_DPI_AWARE);
         }
         
-        // Create the window
-        log::info!("Creating window");
-        let mut window = self.create_window(config.width as i32, config.height as i32)?;
+        // Determine window size based on image size if an image is provided
+        let (window_width, window_height) = if let Some(path) = &config.image_path {
+            // Try to load the image first to get its dimensions
+            match image::image_dimensions(path) {
+                Ok((width, height)) => {
+                    log::info!("Image dimensions: {} x {}", width, height);
+                    // Update the app state with the image info
+                    state.set_current_image(path.clone(), (width, height));
+                    (width as i32, height as i32)
+                },
+                Err(e) => {
+                    log::error!("Failed to get image dimensions: {}", e);
+                    (config.width as i32, config.height as i32)
+                }
+            }
+        } else {
+            (config.width as i32, config.height as i32)
+        };
+        
+        // Create the window with appropriate dimensions
+        log::info!("Creating window with dimensions: {} x {}", window_width, window_height);
+        let mut window = self.create_window(window_width, window_height)?;
         
         // Load image if an image path was provided
         if let Some(path) = &config.image_path {
             log::info!("Loading image: {}", path);
-            window.load_image(path)?;
+            if let Err(e) = window.load_image(path) {
+                log::error!("Failed to load image: {:?}", e);
+            }
         }
         
         // Run the message loop, which will properly create and show the window
