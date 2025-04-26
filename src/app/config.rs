@@ -4,7 +4,7 @@
 pub struct Config {}
 
 impl Config {
-    pub fn from_args(args: Vec<String>) -> Self {
+    pub fn from_args(_args: std::env::Args) -> Self {
         Config {}
     }
 }
