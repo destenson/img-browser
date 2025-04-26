@@ -10,19 +10,9 @@ pub fn initialize_rust_logging() {
     // Initialize the logger
     //
     env_logger::Builder::new()
-        .format(|buf, record| {
-            use std::io::Write;
-            writeln!(
-                buf,
-                "{} [{}] {}:{} - {}",
-                chrono::Local::now().format("%Y-%m-%dT%H:%M:%S"),
-                record.level(),
-                record.file().unwrap_or("unknown"),
-                record.line().unwrap_or(0),
-                record.args()
-            )
-        })
         .parse_env("RUST_LOG")
+        .format_line_number(true)
+        .format_file(true)
         // .filter(Some("img_browser"), log::LevelFilter::Debug)
         .init();
 }
