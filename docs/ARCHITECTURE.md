@@ -122,7 +122,7 @@ For Windows image rendering, this involves:
 - **log/env_logger**: For logging functionality
 - **defer**: For resource cleanup
 - **chrono**: For time-related functionality
-- **opencv**: For advanced image processing and computer vision
+- **opencv**: For advanced image processing and computer vision (planned)
 - **rusqlite/diesel**: For database management (planned)
 - **rayon**: For parallel processing (planned)
 - **serde**: For serialization and deserialization (planned)

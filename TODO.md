@@ -106,6 +106,25 @@ This document tracks immediate tasks and priorities for the img-browser media ma
   - Developer documentation
   - Example workflows
 
+## UI Improvements (Medium Priority)
+
+- [ ] **Dialog Enhancements**
+  - Add recursive folder scanning toggle to the folder open dialog (challenging due to Windows COM interfaces)
+  - Implement confirmation dialogs for destructive operations
+  - Add progress dialogs for long-running operations
+
+- [ ] **Navigation and Interaction**
+  - Implement keyboard navigation for media browsing
+  - Add drag-and-drop support for files and folders
+  - Create customizable interface themes
+  - Implement zooming and panning controls for images
+
+- [ ] **Layout and Organization**
+  - Add customizable grid/list views
+  - Implement collapsible panels for metadata
+  - Create resizable thumbnail sizes
+  - Add sorting and grouping options in the UI
+
 ## Completed
 
 - [x] Initial project structure setup
