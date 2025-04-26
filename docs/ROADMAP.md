@@ -15,13 +15,14 @@ The project has moved beyond conceptual phase to implementation of core architec
 ### Core Functionality
 
 - [x] Basic window creation and management
-- [ ] Media file loading and display (images)
+- [x] Media file loading and display (images)
 - [ ] Media file display (videos)
 - [ ] Command-line argument parsing with clap
-- [ ] File system navigation and media discovery
+- [x] File system navigation and media discovery
 - [x] Proper error handling and logging
 - [ ] Basic media manipulation (zoom, rotate, flip)
-- [ ] Support for common media formats (JPEG, PNG, WebP, GIF, MP4, etc.)
+- [x] Support for common image formats (JPEG, PNG, WebP)
+- [ ] Support for additional media formats (GIF, MP4, etc.)
 - [ ] Keyboard shortcuts for common operations
 
 ### Architecture and Platform
@@ -35,9 +36,13 @@ The project has moved beyond conceptual phase to implementation of core architec
 
 ### Media Management Foundation
 
-- [ ] Media database for tracking files and metadata
+- [x] Media database for tracking files and metadata
+- [ ] Database persistence with hybrid approach:
+  - [ ] Global user-hidden database as default
+  - [ ] Exportable sharable database files
+  - [ ] Directory-based project databases that override global database
 - [ ] Basic tagging and categorization system
-- [ ] Directory scanning and indexing
+- [x] Directory scanning and indexing
 - [ ] Duplicate detection (exact matches)
 - [ ] Basic search functionality
 - [ ] Thumbnail generation and caching

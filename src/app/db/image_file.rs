@@ -1,24 +1,20 @@
+#![allow(unused)]
+
 use std::{collections::HashSet, path::PathBuf, time::UNIX_EPOCH};
 
 use std::{io, fs};
 
+use serde::{Deserialize, Serialize};
+
 
 /// Represents a single image file in the database
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ImageFile {
     /// Path to the image file
     pub path: PathBuf,
-    #[deprecated]
-    /// File name with extension (deprecated because path already contains this information)
-    pub name: String,
-    #[deprecated]
-    /// File extension (jpg, png, etc.) (deprecated because path already contains this information)
-    pub extension: String,
-    #[deprecated]
-    /// File size in bytes (deprecated because path already contains this information)
+    /// File size in bytes
     pub size: u64,
-    #[deprecated]
-    /// Last modified timestamp (seconds since epoch) (deprecated because path already contains this information)
+    /// Last modified timestamp (seconds since epoch)
     pub modified: u64,
     /// Whether the file has been viewed before
     pub viewed: bool,
@@ -26,6 +22,8 @@ pub struct ImageFile {
     pub tags: HashSet<String>,
     /// Favorite status
     pub favorite: bool,
+    /// File hash for duplicate detection and file integrity/change detection
+    pub file_hash: Vec<u8>,
 }
 
 impl ImageFile {
@@ -33,29 +31,32 @@ impl ImageFile {
     pub fn new(path: PathBuf) -> io::Result<Self> {
         let metadata = fs::metadata(&path)?;
         
-        let name = path.file_name()
-            .map(|n| n.to_string_lossy().to_string())
-            .unwrap_or_default();
-            
-        let extension = path.extension()
-            .map(|ext| ext.to_string_lossy().to_lowercase())
-            .unwrap_or_default();
-            
         let modified = metadata.modified()?
             .duration_since(UNIX_EPOCH)
             .map(|d| d.as_secs())
             .unwrap_or(0);
             
         Ok(Self {
-            path,
-            name,
-            extension,
+            path: path.clone(),
             size: metadata.len(),
             modified,
             viewed: false,
             tags: HashSet::new(),
             favorite: false,
+            file_hash: hash_file(&path)?,
         })
+    }
+    
+    pub fn name(&self) -> String {
+        self.path.file_name()
+            .map(|n| n.to_string_lossy().to_string())
+            .unwrap_or_default()
+    }
+    
+    pub fn extension(&self) -> String {
+        self.path.extension()
+            .map(|ext| ext.to_string_lossy().to_lowercase())
+            .unwrap_or_default()
     }
     
     /// Mark the image as viewed
@@ -79,3 +80,25 @@ impl ImageFile {
     }
 }
 
+fn hash_file(path: &PathBuf) -> io::Result<Vec<u8>> {
+    use std::hash::{Hash, Hasher};
+    use std::io::Read;
+    use std::fs::File;
+    use std::collections::hash_map::DefaultHasher;
+    
+    let mut file = File::open(path)?;
+    let mut hasher = DefaultHasher::new();
+    
+    let mut buffer = [0; 1024];
+    while let Ok(n) = file.read(&mut buffer) {
+        if n == 0 {
+            break;
+        }
+        hasher.write(&buffer[..n]);
+    }
+    
+    let hash = hasher.finish();
+    let hash_bytes = hash.to_be_bytes().to_vec();
+    
+    Ok(hash_bytes)
+}

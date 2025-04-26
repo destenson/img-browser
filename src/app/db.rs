@@ -7,13 +7,14 @@ use std::collections::{HashMap, HashSet};
 use std::io;
 use std::time::{SystemTime, UNIX_EPOCH};
 use std::fs;
+use serde::{Serialize, Deserialize};
 
 use image_file::ImageFile;
 
 use super::fs::{is_supported_image, scan_directory_recursive};
 
 /// Represents a collection of images with associated metadata
-#[derive(Debug, Default, Clone, PartialEq, Eq)]
+#[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct MediaDatabase {
     /// All tracked images, keyed by their path as a string
     images: HashMap<String, ImageFile>,

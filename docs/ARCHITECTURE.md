@@ -47,6 +47,9 @@ Currently, the application primarily targets Windows through the Win32 API.
 The data layer will handle persistence and data management:
 
 - **Database**: Storage for media metadata and organization
+  - Hybrid approach with global user-hidden database as default
+  - Support for exportable sharable database files
+  - Support for directory-based project databases that override global database
 - **File Management**: Handling of media files on disk
 - **Import/Export**: Data interchange with other systems
 - **Caching**: Performance optimization for media access
@@ -123,9 +126,9 @@ For Windows image rendering, this involves:
 - **defer**: For resource cleanup
 - **chrono**: For time-related functionality
 - **opencv**: For advanced image processing and computer vision (planned)
-- **rusqlite/diesel**: For database management (planned)
+- **serde_json**: For JSON serialization of database files
+- **serde**: For serialization and deserialization
 - **rayon**: For parallel processing (planned)
-- **serde**: For serialization and deserialization (planned)
 - **tokio**: For asynchronous operations (planned)
 
 ### AI and Machine Learning (Planned)
