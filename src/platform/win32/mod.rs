@@ -40,6 +40,21 @@ impl Window {
         }
         Ok(())
     }
+    
+    pub fn load_image(&mut self, path: &str) -> windows::core::Result<()> {
+        let (bitmap, width, height) = load_image_as_bitmap(path);
+        
+        // Clean up old bitmap if it exists
+        if !self.hbitmap.is_invalid() {
+            unsafe { DeleteObject(self.hbitmap) };
+        }
+        
+        self.hbitmap = bitmap.into();
+        self.width = width;
+        self.height = height;
+        
+        Ok(())
+    }
 }
 
 pub struct Platform {}
@@ -47,39 +62,144 @@ pub struct Platform {}
 impl super::Platform for Platform {
     type Window = Window;
     type App = crate::App;
+    
     fn create_window(&self, width: i32, height: i32) -> super::Result<Window> {
+        // Get the DC for the screen
+        let hdc = unsafe { GetDC(HWND::default()) };
+        let hdc_mem = unsafe { CreateCompatibleDC(hdc) };
+        let hbitmap = unsafe { CreateCompatibleBitmap(hdc, width, height) };
+        
         Ok(Window {
             hwnd: HWND::default(),
-            hdc: HDC::default(),
-            hdc_mem: HDC::default(),
-            hbitmap: HBITMAP::default(),
+            hdc,
+            hdc_mem,
+            hbitmap,
             width,
             height,
         })
     }
+    
     fn message_loop(&self, window: Window, app: &mut Self::App) -> super::Result<()> {
-        todo!();
-        Ok(())
+        // Call the window loop function from win32_main.rs
+        super::win32_main::run_window_loop(window, app)
+            .map_err(|e| anyhow::anyhow!("Error in window loop: {}", e))
     }
+    
     fn run(&self, app: crate::App) -> super::Result<()> {
-        let crate::App { config, state } = app;
+        let mut app = app;
+        let crate::App { config, state } = &app;
 
         log::info!("Running on Windows");
         log::info!("Config: {:?}", config);
         log::info!("State: {:?}", state);
         
-        // TODO: create the window and run the message loop
+        // Enable DPI awareness
+        unsafe {
+            let _ = SetProcessDpiAwareness(PROCESS_PER_MONITOR_DPI_AWARE);
+        }
+        
+        // Create the window
         log::info!("Creating window");
+        let mut window = self.create_window(config.width as i32, config.height as i32)?;
         
-        let w = self.create_window(config.width as i32, config.height as i32)?;
+        // Load image if an image path was provided
+        if let Some(path) = &config.image_path {
+            log::info!("Loading image: {}", path);
+            window.load_image(path)?;
+        }
         
-        w.show()?;
+        // Show the window
+        window.show()?;
         
         log::info!("Running message loop");
-        self.message_loop(w, &mut crate::App::default())?;
-        
+        match super::win32_main::run_window_loop(window, &mut app) {
+            Ok(_) => log::info!("Message loop exited normally"),
+            Err(e) => log::error!("Message loop failed: {}", e),
+        }
         
         log::info!("Exiting");
         Ok(())
     }
+}
+
+/// Loads an image from a file path and returns it as a bitmap handle
+fn load_image_as_bitmap(img_path: &str) -> (HGDIOBJ, i32, i32) {
+    use image::GenericImageView;
+    // Load the image using the `image` crate
+    let img = image::open(img_path).expect("Failed to load image");
+    let (width, height) = img.dimensions();
+    log::info!("Loaded image dimensions: {} x {}", width, height);
+    let img = img.to_rgba8();
+    
+    // Create a device context for the entire screen
+    let hdc_screen = unsafe { GetDC(None) }; // Get the screen's device context
+    let hdc = unsafe { CreateCompatibleDC(hdc_screen) };
+
+    // Create a compatible bitmap
+    let hbitmap = unsafe {
+        CreateCompatibleBitmap(
+            hdc_screen,
+            width as i32,
+            height as i32,
+        )
+    };
+
+    if hbitmap.is_invalid() {
+        panic!("Failed to create compatible bitmap.");
+    }
+
+    // Set the bitmap bits
+    let bmp_info_header = BITMAPINFOHEADER {
+        biSize: std::mem::size_of::<BITMAPINFOHEADER>() as u32,
+        biWidth: width as i32,
+        biHeight: -(height as i32), // Negative for top-down bitmap
+        biPlanes: 1,
+        biBitCount: 32,
+        biCompression: BI_RGB.0, // Use BI_RGB for uncompressed RGB
+        ..Default::default()
+    };
+
+    let prev_bmp = unsafe { SelectObject(hdc, hbitmap) };
+
+    let mut bmp_info = BITMAPINFO {
+        bmiHeader: bmp_info_header,
+        bmiColors: [RGBQUAD {
+            rgbRed: 0,
+            rgbGreen: 0,
+            rgbBlue: 0,
+            rgbReserved: 0,
+        }; 1],
+    };
+
+    unsafe {
+        let res = SetDIBitsToDevice(
+            hdc,
+            0,
+            0,
+            width,
+            height,
+            0,
+            0,
+            0,
+            height,
+            img.as_raw().as_ptr() as *const _,
+            &mut bmp_info,
+            DIB_RGB_COLORS,
+        );
+
+        if res == 0 {
+            log::error!("Failed to set DIB bits: {}", GetLastError().0);
+        }
+    }
+
+    // Restore the device context
+    unsafe { SelectObject(hdc, prev_bmp) };
+
+    unsafe {
+        let _ = DeleteDC(hdc);
+        ReleaseDC(HWND(std::ptr::null_mut()), hdc_screen);
+    }
+
+    // Return the bitmap handle
+    (hbitmap.into(), width as i32, height as i32)
 }
