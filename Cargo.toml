@@ -3,7 +3,7 @@ resolver = "2"
 
 members = [
     ".", # "vendor/emulsion",
-    # "vendor/avis-imgv",
+    "vendor/avis-imgv",
 ]
 
 exclude = [

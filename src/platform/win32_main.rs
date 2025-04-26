@@ -10,6 +10,8 @@ use windows::{
     },
 };
 
+use super::Window;
+
 use image::DynamicImage;
 
 use defer::defer;
@@ -52,7 +54,7 @@ struct DbgOpts {
     // pub show_stylus: bool,
     // pub show_pen: bool,
     // pub show_ink: bool,
-  
+    
     image_path: &'static str,
 }
 

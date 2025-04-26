@@ -12,6 +12,8 @@ use app::App;
 pub use app::{Error, Result};
 
 fn main() {
+    // Initialize the logger
+    logging::initialize_rust_logging();
 
     if false {
         winmain::main().expect("winmain::main failed");
@@ -26,30 +28,4 @@ fn main() {
 }
 
 
-fn main_() {
-    // Initialize the logger
-    logging::initialize_rust_logging();
-
-    // TODO: use clap for the args
-
-    // Create the app
-    let app = App::new(std::env::args());
-
-    // Run the app
-    let result = app.run();
-
-    // Handle the result
-    if let Err(e) = result {
-        eprintln!("Error: {}", e);
-    }
-    
-    // // Load the image as a bitmap
-    // let (image_bmp, width, height) = load_image_as_bitmap("assets/image.png");
-
-    // // Create the window
-    // let window = create_window(width, height).expect("Failed to create window");
-
-    // // Main message loop
-    // let _ = message_loop(window, image_bmp, width, height).expect("Message loop failed");
-}
 

@@ -2,8 +2,9 @@
 #[cfg(target_os = "windows")]
 pub mod win32;
 
-use super::Result;
+use std::sync::Arc;
 
+use super::Result;
 
 #[cfg(target_os = "windows")]
 pub mod win32_main;
@@ -19,6 +20,7 @@ pub type Window = win32::Window;
 pub trait Platform {
     type Window;
     type App;
+    fn run(&self, app: Self::App) -> Result<()>;
     fn create_window(&self, width: i32, height: i32) -> Result<Window>;
     fn message_loop(&self, window: Window, app: &mut Self::App) -> Result<()>;
     // fn load_image_as_bitmap(&self, path: &str) -> Result<(Bitmap, i32, i32)>;
@@ -26,17 +28,15 @@ pub trait Platform {
 
 
 pub fn main(args: std::env::Args) -> super::Result<()> {
-    // Initialize the logger
-    super::logging::initialize_rust_logging();
-    
+
     // Create the app
     let app = super::App::new(args);
 
     // Create the platorm abstraction layer
-    let platform = 
+    let platform = win32::Platform {};
 
     // Run the app
-    let result = app.run();
+    let result = app.run(platform);
 
     // Handle the result
     if let Err(e) = result {

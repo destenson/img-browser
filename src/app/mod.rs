@@ -3,16 +3,20 @@ pub mod error;
 pub mod settings;
 pub mod state;
 
+use std::{cell::RefMut, sync::Arc};
+
 // Every app has a state and a configuration.
-use config::Config;
-use state::State;
+pub use config::Config;
+pub use state::State;
 
 pub use error::{Error, Result};
 
+use crate::platform::Platform;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct App {
-    config: Config,
-    state: State,
+    pub config: Config,
+    pub state: State,
 }
 
 impl App {
@@ -21,17 +25,23 @@ impl App {
         // process arguments
         let config = Config::from_args(args);
         let state = State::default();
+        // create the app
         App { config, state }
     }
 }
 
 impl App {
-    pub fn run(&self) -> Result<()> {
+    pub fn run<P: Platform<App = Self, Window = crate::platform::Window>>(self, platform: P) -> Result<()> {
+        {
+        let Self { config, state } = &self;
+        
         // log the configuration
         log::info!("Config: {:?}", self.config);
         // log the state
         log::info!("State: {:?}", self.state);
-        Ok(())
+        }
+        
+        platform.run(self)
     }
 }
 
