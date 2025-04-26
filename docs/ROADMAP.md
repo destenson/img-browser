@@ -8,20 +8,30 @@ img-browser will evolve beyond a simple image viewer into a comprehensive media 
 
 ## Current Status
 
-The project is in conceptual phase with initial architecture planning. Basic Windows integration functionality has been explored, but the full feature set is still in design.
+The project has moved beyond conceptual phase to implementation of core architecture. Basic Windows integration functionality has been implemented, including window management, image loading, and platform abstraction layer design. A flexible architecture is being established to support future features.
 
 ## Short-Term Goals (0-3 months)
 
 ### Core Functionality
 
-- [ ] Basic window creation and management
-- [ ] Media file loading and display (images, videos)
+- [x] Basic window creation and management
+- [ ] Media file loading and display (images)
+- [ ] Media file display (videos)
 - [ ] Command-line argument parsing with clap
 - [ ] File system navigation and media discovery
-- [ ] Proper error handling and logging
+- [x] Proper error handling and logging
 - [ ] Basic media manipulation (zoom, rotate, flip)
 - [ ] Support for common media formats (JPEG, PNG, WebP, GIF, MP4, etc.)
 - [ ] Keyboard shortcuts for common operations
+
+### Architecture and Platform
+
+- [x] Platform abstraction layer
+- [x] Windows-specific implementation
+- [ ] Cross-platform groundwork
+- [ ] Modular design for extensibility
+- [ ] Performance-optimized rendering
+- [ ] Configuration and settings management
 
 ### Media Management Foundation
 
