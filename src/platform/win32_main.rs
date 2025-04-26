@@ -58,8 +58,8 @@ pub fn run_window_loop(mut window: Window, app: &mut App) -> windows::core::Resu
         SetWindowLongPtrA(window.hwnd, GWLP_USERDATA, &window as *const _ as isize);
 
         // Show window
-        ShowWindow(window.hwnd, SW_SHOWNORMAL);
-        UpdateWindow(window.hwnd)?;
+        ShowWindow(window.hwnd, SW_SHOWNORMAL).ok()?;
+        UpdateWindow(window.hwnd).ok()?;
 
         // Message loop
         let mut message = MSG::default();

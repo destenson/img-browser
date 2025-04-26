@@ -3,7 +3,6 @@ pub mod error;
 pub mod settings;
 pub mod state;
 
-use std::{cell::RefMut, sync::Arc};
 
 // Every app has a state and a configuration.
 pub use config::Config;
@@ -13,7 +12,7 @@ pub use error::{Error, Result};
 
 use crate::platform::Platform;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct App {
     pub config: Config,
     pub state: State,

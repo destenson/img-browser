@@ -2,8 +2,9 @@
 
 
 use windows::Win32::{
-    Foundation::{HWND, LPARAM, LRESULT, WPARAM},
-    Graphics::Gdi::{HBITMAP, HDC, DeleteObject, DeleteDC, ReleaseDC, CreateCompatibleDC, CreateCompatibleBitmap, BeginPaint, BitBlt, EndPaint, GetDC, SelectObject, SetDIBitsToDevice, UpdateWindow, BITMAPINFO, BITMAPINFOHEADER, BI_RGB, DIB_RGB_COLORS, HBRUSH, HGDIOBJ, PAINTSTRUCT, RGBQUAD, SRCCOPY}, 
+    Foundation::{HWND, LPARAM, LRESULT, WPARAM, GetLastError},
+    Graphics::Gdi::{HBITMAP, HDC, DeleteObject, DeleteDC, ReleaseDC, CreateCompatibleDC, CreateCompatibleBitmap, BeginPaint, BitBlt, EndPaint, GetDC, SelectObject, SetDIBitsToDevice, UpdateWindow, BITMAPINFO, BITMAPINFOHEADER, BI_RGB, DIB_RGB_COLORS, HBRUSH, HGDIOBJ, PAINTSTRUCT, RGBQUAD, SRCCOPY},
+    UI::HiDpi::{SetProcessDpiAwareness, PROCESS_PER_MONITOR_DPI_AWARE},
 };
 
 /// Encapsulates a window.
@@ -49,7 +50,8 @@ impl Window {
             unsafe { DeleteObject(self.hbitmap) };
         }
         
-        self.hbitmap = bitmap.into();
+        // Convert HGDIOBJ to HBITMAP
+        self.hbitmap = unsafe { HBITMAP(bitmap.0) };
         self.width = width;
         self.height = height;
         
@@ -81,8 +83,7 @@ impl super::Platform for Platform {
     
     fn message_loop(&self, window: Window, app: &mut Self::App) -> super::Result<()> {
         // Call the window loop function from win32_main.rs
-        super::win32_main::run_window_loop(window, app)
-            .map_err(|e| anyhow::anyhow!("Error in window loop: {}", e))
+        Ok(super::win32_main::run_window_loop(window, app)?)
     }
     
     fn run(&self, app: crate::App) -> super::Result<()> {
