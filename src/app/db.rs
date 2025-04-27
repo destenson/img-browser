@@ -1,3 +1,4 @@
+#![allow(unused)]
 ///! Media database for tracking image files and metadata
 
 pub mod image_file;
@@ -262,6 +263,12 @@ impl MediaDatabase {
         }
         
         Ok(false)
+    }
+}
+
+impl std::fmt::Display for MediaDatabase {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "MediaDatabase {{ images: {}, tags: {}, recent_views: {}, favorites: {} }}", self.images.len(), self.all_tags.len(), self.recent_views.len(), self.favorites.len())
     }
 }
 

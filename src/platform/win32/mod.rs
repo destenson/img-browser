@@ -2,9 +2,11 @@
 
 mod main;
 mod dialogs;
+mod fs;
 
 pub use dialogs::{open_file_dialog, open_folder_dialog};
 pub use main::run_window_loop;
+pub use fs::get_known_folder_path;
 
 use windows::Win32::{
     Foundation::{HWND, LPARAM, LRESULT, WPARAM, GetLastError},
@@ -104,8 +106,8 @@ impl super::Platform for Platform {
         let crate::App { ref config, ref mut state } = app;
 
         log::info!("Running on Windows");
-        log::info!("Config: {:?}", config);
-        log::info!("State: {:?}", state);
+        log::info!("Config: {}", config);
+        log::info!("State: {}", state);
         
         // Enable DPI awareness
         unsafe {
@@ -146,6 +148,10 @@ impl super::Platform for Platform {
         // Run the message loop, which will properly create and show the window
         log::info!("Running message loop");
         self.message_loop(window, &mut app)
+    }
+    
+    fn get_special_folder(&self, folder_type: super::SpecialFolder) -> Option<std::path::PathBuf> {
+        fs::get_special_folder_path(folder_type)
     }
 }
 

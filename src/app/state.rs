@@ -249,9 +249,30 @@ impl State {
         }
     }
     
+    pub fn save_media_db(&mut self, config: &super::Config) -> std::io::Result<()> {
+        if let Some(db) = &self.media_db {
+            db.save(config, self)
+        } else {
+            Ok(())
+        }
+    }
+    
     /// Get the list of recently visited directories
     pub fn last_directories(&self) -> &[PathBuf] {
         &self.last_directories
+    }
+}
+
+impl std::fmt::Display for State {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        if f.alternate() {
+            write!(f, "State {{ window_pos: {:?}, window_size: {:?}, state_machine: {:?}, current_image: {:?}, current_directory: {:?}, directory_contents: {:?}, selected_entry_index: {:?}, view_mode: {:?}, media_db: {:?} }}", self.window_pos, self.window_size, self.state_machine, self.current_image, self.current_directory, self.directory_contents, self.selected_entry_index, self.view_mode, self.media_db)
+        } else {
+            write!(f, "State: window_pos=({}, {}), window_size={}x{}, state_machine={}, current_image={:?}, current_directory={:?}, selected_entry_index={:?}, view_mode={:?}, media_db={}", self.window_pos.0, self.window_pos.1, self.window_size.0, self.window_size.1, self.state_machine, self.current_image, self.current_directory, self.selected_entry_index, self.view_mode, match &self.media_db {
+                Some(db) => format!("{}", db),
+                None => "None".to_string(),
+            })
+        }
     }
 }
 

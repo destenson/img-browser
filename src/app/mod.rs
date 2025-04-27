@@ -95,9 +95,9 @@ impl App {
             let Self { config, state } = &self;
             
             // log the configuration
-            log::info!("Config: {:?}", self.config);
+            log::debug!("Config: {}", self.config);
             // log the state
-            log::info!("State: {:?}", self.state);
+            log::debug!("State: {}", self.state);
         }
         
         platform.run(self)

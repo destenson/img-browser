@@ -138,11 +138,12 @@ fn get_path_from_pwstr(pwstr: PWSTR) -> PathBuf {
 
 /// Helper function to convert &str to Vec<u16> (wide string)
 fn to_wide_string(s: &str) -> Vec<u16> {
+    // add null terminator
     s.encode_utf16().chain(std::iter::once(0)).collect()
 }
 
 /// Helper function to get length of wide string
-unsafe fn wcslen(s: *const u16) -> usize {
+pub unsafe fn wcslen(s: *const u16) -> usize {
     let mut len = 0;
     while *s.add(len) != 0 {
         len += 1;

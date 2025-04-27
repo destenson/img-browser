@@ -351,8 +351,19 @@ fn handle_open_folder(hwnd: HWND) {
                             
                             // If the app is configured for recursive scanning
                             if app.config.recursive {
-                                if let Err(e) = app.state.update_media_db_for_current_directory(true) {
-                                    log::error!("Failed to scan directory: {}", e);
+                                match app.state.update_media_db_for_current_directory(true) {
+                                    Ok(items_scanned) => {
+                                        if items_scanned == 0 {
+                                            log::warn!("No images found in directory");
+                                        } else {
+                                            log::info!("Scanned {} items in directory", items_scanned);
+                                            app.state.save_media_db(&app.config).inspect_err(|e| {
+                                                log::error!("Failed to save media database: {}", e);
+                                            }).expect("Failed to save media database");
+                                        }
+                                        
+                                    },
+                                    Err(e) =>log::error!("Failed to scan directory: {}", e)
                                 }
                             }
                             

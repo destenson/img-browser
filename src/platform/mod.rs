@@ -17,9 +17,21 @@ pub trait Platform {
     fn run(&self, app: Self::App) -> Result<()>;
     fn create_window(&self, width: i32, height: i32) -> Result<Window>;
     fn message_loop(&self, window: Window, app: &mut Self::App) -> Result<()>;
+    /// Get a path to a special folder (like Pictures, Documents, etc.)
+    fn get_special_folder(&self, folder_type: SpecialFolder) -> Option<std::path::PathBuf>;
     // fn load_image_as_bitmap(&self, path: &str) -> Result<(Bitmap, i32, i32)>;
 }
 
+/// Types of special folders that can be accessed through the platform layer
+pub enum SpecialFolder {
+    Documents,
+    Pictures,
+    Videos,
+    Music,
+    Downloads,
+    Desktop,
+    AppData,
+}
 
 pub fn main(args: std::env::Args) -> super::Result<()> {
 
