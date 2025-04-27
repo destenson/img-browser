@@ -14,6 +14,23 @@ pub use error::{Error, Result};
 use crate::platform::Platform;
 use std::path::{Path, PathBuf};
 use std::env;
+use std::sync::Once;
+
+// Global platform instance
+static mut PLATFORM_INSTANCE: Option<crate::platform::win32::Platform> = None;
+static INIT_PLATFORM: Once = Once::new();
+
+/// Get a reference to the platform instance.
+/// This function initializes the platform instance if it hasn't been initialized yet.
+pub fn get_platform() -> Option<&'static impl crate::platform::Platform> {
+    unsafe {
+        INIT_PLATFORM.call_once(|| {
+            PLATFORM_INSTANCE = Some(crate::platform::win32::Platform {});
+        });
+        
+        PLATFORM_INSTANCE.as_ref()
+    }
+}
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct App {

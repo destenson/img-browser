@@ -153,6 +153,15 @@ impl super::Platform for Platform {
     fn get_special_folder(&self, folder_type: super::SpecialFolder) -> Option<std::path::PathBuf> {
         fs::get_special_folder_path(folder_type)
     }
+    
+    fn create_directory(&self, path: &std::path::Path) -> super::Result<()> {
+        // Use our Windows-specific directory creation
+        fs::create_directory_windows(path)
+            .map_err(|e| std::io::Error::new(
+                std::io::ErrorKind::Other, 
+                format!("Failed to create directory: {}", e)
+            ).into())
+    }
 }
 
 /// Loads an image from a file path and returns it as a bitmap handle

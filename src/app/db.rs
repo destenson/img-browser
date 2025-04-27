@@ -12,6 +12,8 @@ use serde::{Serialize, Deserialize};
 
 use image_file::ImageFile;
 
+use crate::platform::Platform;
+
 use super::fs::{is_supported_image, scan_directory_recursive};
 
 /// Represents a collection of images with associated metadata
@@ -36,6 +38,101 @@ impl MediaDatabase {
             recent_views: Vec::new(),
             favorites: HashSet::new(),
         }
+    }
+    
+    pub fn save(&self, config: &super::Config, state: &super::State) -> io::Result<()> {
+        // Get the current directory from the state
+        let db_root_path = if let Some(current_dir) = state.current_directory() {
+            // Create a directory within the current directory
+            let db_path = current_dir.join(".img-browser");
+            
+            // Use the platform-specific directory creation
+            if let Some(platform) = super::get_platform() {
+                if let Err(e) = platform.create_directory(&db_path) {
+                    log::error!("Failed to create directory ({}): {}", db_path.display(), e);
+                    return Err(std::io::Error::new(
+                        std::io::ErrorKind::Other, 
+                        format!("Failed to create directory: {}", e)
+                    ));
+                }
+            } else {
+                // Fallback to standard fs functions if platform is not available
+                std::fs::create_dir_all(&db_path)?;
+            }
+            
+            db_path
+        } else {
+            return Err(io::Error::new(
+                io::ErrorKind::NotFound,
+                "No current directory set",
+            ));
+        };
+        
+        let db_path = db_root_path.join("project_db.json");
+        
+        log::info!("Saving database to {}", db_path.display());
+        
+        let db_json = serde_json::to_string_pretty(self)?;
+        fs::write(&db_path, db_json)?;
+        
+        Ok(())
+    }
+    
+    pub fn load(config: &super::Config) -> io::Result<Self> {
+        // First try to get the AppData directory using the platform layer
+        let app_data_path = if let Some(platform) = super::get_platform() {
+            platform.get_special_folder(crate::platform::SpecialFolder::AppData)
+        } else {
+            None
+        };
+        
+        // Determine the likely project name based on the current directory
+        let project_name = if let Some(dir) = &config.directory {
+            dir.file_name()
+                .and_then(|name| name.to_str())
+                .unwrap_or("default")
+        } else {
+            "default"
+        };
+        
+        // First check if there's a database in AppData
+        if let Some(app_data) = app_data_path {
+            let app_path = app_data.join("img-browser");
+            let db_path = app_path.join(format!("{}_db.json", project_name));
+            
+            log::info!("Trying to load database from {}", db_path.display());
+            
+            if db_path.exists() {
+                match fs::read_to_string(&db_path) {
+                    Ok(db_json) => match serde_json::from_str(&db_json) {
+                        Ok(db) => return Ok(db),
+                        Err(e) => log::warn!("Failed to parse database JSON: {}", e)
+                    },
+                    Err(e) => log::warn!("Failed to read database file: {}", e)
+                }
+            }
+        }
+        
+        // Fallback: try the old location in the current directory
+        if let Some(dir) = &config.directory {
+            let db_path = dir.join(".img-browser").join("project_db.json");
+            
+            log::info!("Trying to load legacy database from {}", db_path.display());
+            
+            if db_path.exists() {
+                match fs::read_to_string(&db_path) {
+                    Ok(db_json) => match serde_json::from_str(&db_json) {
+                        Ok(db) => return Ok(db),
+                        Err(e) => log::warn!("Failed to parse legacy database JSON: {}", e)
+                    },
+                    Err(e) => log::warn!("Failed to read legacy database file: {}", e)
+                }
+            }
+        }
+        
+        // If nothing was found, create a new database
+        log::info!("No existing database found, creating a new one");
+        Ok(Self::new())
     }
     
     /// Add an image to the database from a path

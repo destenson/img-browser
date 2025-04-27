@@ -5,6 +5,8 @@ use std::os::windows::ffi::OsStringExt;
 use windows::Win32::UI::Shell::{SHGetKnownFolderPath, FOLDERID_Pictures, FOLDERID_Documents, FOLDERID_Videos, FOLDERID_Music, FOLDERID_Downloads, FOLDERID_Desktop, FOLDERID_RoamingAppData};
 use windows::core::{GUID, PWSTR};
 use crate::platform::win32::dialogs::wcslen;
+use windows::Win32::Storage::FileSystem::{CreateDirectoryW, GetFileAttributesW, FILE_ATTRIBUTE_DIRECTORY};
+use windows::Win32::Foundation::{ERROR_ALREADY_EXISTS, GetLastError};
 
 use super::super::SpecialFolder;
 
@@ -44,6 +46,62 @@ pub fn get_special_folder_path(folder_type: SpecialFolder) -> Option<PathBuf> {
     get_known_folder_path(folder_id).inspect_err(|e| {
         log::error!("Failed to get special folder path: {}", e);
     }).ok()
+}
+
+/// Create a directory using Windows API directly
+/// Will create all intermediate directories as needed
+pub fn create_directory_windows(path: &std::path::Path) -> windows::core::Result<()> {
+    // Convert the path to a UTF-16 encoded string that Windows APIs expect
+    let wide_path = path.to_string_lossy().encode_utf16().collect::<Vec<u16>>();
+    
+    // Terminate with a null character
+    let mut wide_path_null = wide_path.clone();
+    wide_path_null.push(0);
+    
+    // Check if the directory already exists
+    unsafe {
+        let attrs = GetFileAttributesW(windows::core::PCWSTR::from_raw(wide_path_null.as_ptr()));
+        if attrs != u32::MAX && attrs & (FILE_ATTRIBUTE_DIRECTORY.0 as u32) != 0 {
+            // Directory already exists
+            return Ok(());
+        }
+        
+        // Create the directory
+        let result = CreateDirectoryW(
+            windows::core::PCWSTR::from_raw(wide_path_null.as_ptr()),
+            None, // No security attributes
+        ).inspect_err(|e| {
+            log::error!("Failed to create directory: {}", e);
+        })?;
+        
+        let error = GetLastError();
+        if error == ERROR_ALREADY_EXISTS {
+            // This is fine - directory already exists
+            return Ok(());
+        }
+        
+        // Try creating parent directories first
+        if let Some(parent) = path.parent() {
+            if parent.as_os_str().len() > 0 {
+                create_directory_windows(parent)?;
+                
+                // Try creating the directory again
+                CreateDirectoryW(
+                    windows::core::PCWSTR::from_raw(wide_path_null.as_ptr()),
+                    None,
+                ).map_err(|e| {
+                    let error = GetLastError();
+                    if error != ERROR_ALREADY_EXISTS {
+                        return windows::core::Error::from_win32();
+                    } else {
+                        return e;
+                    }
+                })?;
+            }
+        }
+    }
+    
+    Ok(())
 }
 
 #[cfg(test)]

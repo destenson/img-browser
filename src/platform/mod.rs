@@ -1,4 +1,3 @@
-
 #[cfg(target_os = "windows")]
 pub mod win32;
 
@@ -19,6 +18,8 @@ pub trait Platform {
     fn message_loop(&self, window: Window, app: &mut Self::App) -> Result<()>;
     /// Get a path to a special folder (like Pictures, Documents, etc.)
     fn get_special_folder(&self, folder_type: SpecialFolder) -> Option<std::path::PathBuf>;
+    /// Create a directory and all parent directories if needed
+    fn create_directory(&self, path: &std::path::Path) -> Result<()>;
     // fn load_image_as_bitmap(&self, path: &str) -> Result<(Bitmap, i32, i32)>;
 }
 
