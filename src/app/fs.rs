@@ -1,9 +1,9 @@
 ///! filesystem operations
 
 use std::path::{Path, PathBuf};
-use std::fs;
-use std::io;
 use std::collections::HashSet;
+
+use crate::{Result, Error};
 
 /// Supported image file extensions
 pub const SUPPORTED_EXTENSIONS: &[&str] = &[
@@ -84,7 +84,7 @@ pub enum ListOptions {
 }
 
 /// List the contents of a directory
-pub fn list_directory(path: impl AsRef<Path>, options: ListOptions) -> io::Result<DirectoryInfo> {
+pub fn list_directory(path: impl AsRef<Path>, options: ListOptions) -> Result<DirectoryInfo> {
     let path = path.as_ref();
     let mut entries = Vec::new();
     let mut image_count = 0;
@@ -94,7 +94,7 @@ pub fn list_directory(path: impl AsRef<Path>, options: ListOptions) -> io::Resul
     let parent = path.parent().map(PathBuf::from);
     
     // Read the directory contents
-    for entry in fs::read_dir(path)? {
+    for entry in std::fs::read_dir(path)? {
         let entry = entry?;
         let path = entry.path();
         let file_type = entry.file_type()?;
@@ -143,10 +143,10 @@ pub fn list_directory(path: impl AsRef<Path>, options: ListOptions) -> io::Resul
 }
 
 /// Check if a directory contains any supported image files
-pub fn contains_images(path: impl AsRef<Path>) -> io::Result<bool> {
+pub fn contains_images(path: impl AsRef<Path>) -> Result<bool> {
     let path = path.as_ref();
     
-    for entry in fs::read_dir(path)? {
+    for entry in std::fs::read_dir(path)? {
         let entry = entry?;
         if entry.file_type()?.is_file() {
             let file_path = entry.path();
@@ -163,7 +163,7 @@ pub fn contains_images(path: impl AsRef<Path>) -> io::Result<bool> {
 }
 
 /// Scan a directory recursively for all image files
-pub fn scan_directory_recursive(path: impl AsRef<Path>) -> io::Result<Vec<PathBuf>> {
+pub fn scan_directory_recursive(path: impl AsRef<Path>) -> Result<Vec<PathBuf>> {
     let path = path.as_ref();
     let mut image_files = Vec::new();
     
@@ -175,8 +175,8 @@ pub fn scan_directory_recursive(path: impl AsRef<Path>) -> io::Result<Vec<PathBu
         dir: &Path, 
         image_files: &mut Vec<PathBuf>,
         extensions: &HashSet<String>,
-    ) -> io::Result<()> {
-        for entry in fs::read_dir(dir)? {
+    ) -> Result<()> {
+        for entry in std::fs::read_dir(dir)? {
             let entry = entry?;
             let path = entry.path();
             

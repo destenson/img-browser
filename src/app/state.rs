@@ -90,7 +90,7 @@ impl State {
     }
     
     /// Set the current directory and load its contents
-    pub fn set_current_directory<P: AsRef<Path>>(&mut self, path: P) -> std::io::Result<()> {
+    pub fn set_current_directory<P: AsRef<Path>>(&mut self, path: P) -> Result<()> {
         let path = path.as_ref();
         
         // Load directory contents
@@ -115,7 +115,7 @@ impl State {
     }
     
     /// Navigate to the parent directory of the current directory
-    pub fn navigate_to_parent(&mut self) -> std::io::Result<bool> {
+    pub fn navigate_to_parent(&mut self) -> Result<bool> {
         // Get the current directory, if any
         let parent = if let Some(current_dir) = &self.current_directory {
             current_dir.parent().map(PathBuf::from)
@@ -163,7 +163,7 @@ impl State {
     }
     
     /// Open the selected entry (navigate to directory or view image)
-    pub fn open_selected_entry(&mut self) -> std::io::Result<bool> {
+    pub fn open_selected_entry(&mut self) -> Result<bool> {
         // First get information about the selected entry
         let entry_info = if let Some(entry) = self.selected_entry() {
             // Create a copy of the relevant information we need
@@ -236,7 +236,7 @@ impl State {
     }
     
     /// Initialize or update the media database for the current directory
-    pub fn update_media_db_for_current_directory(&mut self, recursive: bool) -> std::io::Result<usize> {
+    pub fn update_media_db_for_current_directory(&mut self, recursive: bool) -> Result<usize> {
         if let Some(dir) = &self.current_directory {
             let dir_path = dir.clone();
             if let Some(db) = &mut self.media_db {
@@ -249,9 +249,11 @@ impl State {
         }
     }
     
-    pub fn save_media_db(&mut self, config: &super::Config) -> std::io::Result<()> {
+    pub fn save_media_db(&mut self, config: &super::Config) -> Result<()> {
         if let Some(db) = &self.media_db {
-            db.save(config, self)
+            db.save(config, self).inspect_err(|e| {
+                log::error!("Failed to save media database: {}", e);
+            })
         } else {
             Ok(())
         }

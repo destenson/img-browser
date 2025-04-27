@@ -6,6 +6,7 @@ pub enum Error {
     WindowError(String),
     ImageError(String),
     ResourceError(String),
+    StateError(String),
     // AppError,
     Unknown(String)
 }
@@ -20,6 +21,7 @@ impl std::fmt::Debug for Error {
             Error::WindowError(s) => write!(f, "WindowError({})", s),
             Error::ImageError(s) => write!(f, "ImageError({})", s),
             Error::ResourceError(s) => write!(f, "ResourceError({})", s),
+            Error::StateError(s) => write!(f, "StateError({})", s),
             // Error::AppError => write!(f, "AppError"),
             Error::Unknown(s) => write!(f, "Unknown({})", s),
         }
@@ -33,6 +35,7 @@ impl std::fmt::Display for Error {
             Error::WindowError(s) => write!(f, "Window error: {}", s),
             Error::ImageError(s) => write!(f, "Image error: {}", s),
             Error::ResourceError(s) => write!(f, "Resource error: {}", s),
+            Error::StateError(s) => write!(f, "State error: {}", s),
             // Error::AppError => write!(f, "App error"),
             Error::Unknown(s) => write!(f, "Unknown error: {}", s),
         }

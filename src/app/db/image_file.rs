@@ -6,6 +6,7 @@ use std::{io, fs};
 
 use serde::{Deserialize, Serialize};
 
+use crate::{Result, Error};
 
 /// Represents a single image file in the database
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -28,7 +29,7 @@ pub struct ImageFile {
 
 impl ImageFile {
     /// Create a new ImageFile from a path
-    pub fn new(path: PathBuf) -> io::Result<Self> {
+    pub fn new(path: PathBuf) -> Result<Self> {
         let metadata = fs::metadata(&path)?;
         
         let modified = metadata.modified()?
@@ -80,7 +81,7 @@ impl ImageFile {
     }
 }
 
-fn hash_file(path: &PathBuf) -> io::Result<Vec<u8>> {
+fn hash_file(path: &PathBuf) -> Result<Vec<u8>> {
     use std::hash::{Hash, Hasher};
     use std::io::Read;
     use std::fs::File;

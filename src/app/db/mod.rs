@@ -5,14 +5,13 @@ pub mod image_file;
 
 use std::path::{Path, PathBuf};
 use std::collections::{HashMap, HashSet};
-use std::io;
 use std::time::{SystemTime, UNIX_EPOCH};
-use std::fs;
 use serde::{Serialize, Deserialize};
 
 use image_file::ImageFile;
 
 use crate::platform::Platform;
+use crate::{Result, Error};
 
 use super::fs::{is_supported_image, scan_directory_recursive};
 
@@ -40,45 +39,35 @@ impl MediaDatabase {
         }
     }
     
-    pub fn save(&self, config: &super::Config, state: &super::State) -> io::Result<()> {
+    pub fn save(&self, config: &super::Config, state: &super::State) -> Result<()> {
         // Get the current directory from the state
-        let db_root_path = if let Some(current_dir) = state.current_directory() {
-            // Create a directory within the current directory
-            let db_path = current_dir.join(".img-browser");
-            
-            // Use the platform-specific directory creation
-            if let Some(platform) = super::get_platform() {
-                if let Err(e) = platform.create_directory(&db_path) {
-                    log::error!("Failed to create directory ({}): {}", db_path.display(), e);
-                    return Err(std::io::Error::new(
-                        std::io::ErrorKind::Other, 
-                        format!("Failed to create directory: {}", e)
-                    ));
+        state.current_directory()
+            .map(|current_dir| {
+                // Create a directory within the current directory
+                let db_path = current_dir.join(".img-browser");
+
+                // Use the platform-specific directory creation
+                if let Some(platform) = super::get_platform() {
+                    platform.create_directory(&db_path).inspect_err(|e | {
+                        log::error!("Failed to create directory ({}): {}", db_path.display(), e);
+                    })?;
+                } else {
+                    // Fallback to standard fs functions if platform is not available
+                    std::fs::create_dir_all(&db_path)?;
                 }
-            } else {
-                // Fallback to standard fs functions if platform is not available
-                std::fs::create_dir_all(&db_path)?;
-            }
-            
-            db_path
-        } else {
-            return Err(io::Error::new(
-                io::ErrorKind::NotFound,
-                "No current directory set",
-            ));
-        };
-        
-        let db_path = db_root_path.join("project_db.json");
-        
-        log::info!("Saving database to {}", db_path.display());
-        
-        let db_json = serde_json::to_string_pretty(self)?;
-        fs::write(&db_path, db_json)?;
-        
-        Ok(())
+
+                db_path
+            }).map(|db_root_path| {
+                let db_path = db_root_path.join("project_db.json");
+
+                log::info!("Saving database to {}", db_path.display());
+
+                let db_json = serde_json::to_string_pretty(self)?;
+                std::fs::write(&db_path, db_json)?;
+            }).ok_or(crate::Error::StateError("No current directory set".to_string()))
     }
     
-    pub fn load(config: &super::Config) -> io::Result<Self> {
+    pub fn load(config: &super::Config) -> Result<Self> {
         // First try to get the AppData directory using the platform layer
         let app_data_path = if let Some(platform) = super::get_platform() {
             platform.get_special_folder(crate::platform::SpecialFolder::AppData)
@@ -103,7 +92,7 @@ impl MediaDatabase {
             log::info!("Trying to load database from {}", db_path.display());
             
             if db_path.exists() {
-                match fs::read_to_string(&db_path) {
+                match std::fs::read_to_string(&db_path) {
                     Ok(db_json) => match serde_json::from_str(&db_json) {
                         Ok(db) => return Ok(db),
                         Err(e) => log::warn!("Failed to parse database JSON: {}", e)
@@ -120,7 +109,7 @@ impl MediaDatabase {
             log::info!("Trying to load legacy database from {}", db_path.display());
             
             if db_path.exists() {
-                match fs::read_to_string(&db_path) {
+                match std::fs::read_to_string(&db_path) {
                     Ok(db_json) => match serde_json::from_str(&db_json) {
                         Ok(db) => return Ok(db),
                         Err(e) => log::warn!("Failed to parse legacy database JSON: {}", e)
@@ -136,7 +125,7 @@ impl MediaDatabase {
     }
     
     /// Add an image to the database from a path
-    pub fn add_image(&mut self, path: impl AsRef<Path>) -> io::Result<()> {
+    pub fn add_image(&mut self, path: impl AsRef<Path>) -> Result<()> {
         let path = path.as_ref();
         
         if is_supported_image(path) {
@@ -151,10 +140,7 @@ impl MediaDatabase {
             
             Ok(())
         } else {
-            Err(io::Error::new(
-                io::ErrorKind::InvalidInput,
-                "Not a supported image format",
-            ))
+            Err(Error::ImageError(format!("{} is not a supported image format", path.display())))
         }
     }
     
@@ -298,13 +284,13 @@ impl MediaDatabase {
     }
     
     /// Scan a directory and add all supported images to the database
-    pub fn scan_directory(&mut self, path: impl AsRef<Path>, recursive: bool) -> io::Result<usize> {
+    pub fn scan_directory(&mut self, path: impl AsRef<Path>, recursive: bool) -> Result<usize> {
         let path = path.as_ref();
         let image_paths = if recursive {
             scan_directory_recursive(path)?
         } else {
             let mut images = Vec::new();
-            for entry in fs::read_dir(path)? {
+            for entry in std::fs::read_dir(path)? {
                 let entry = entry?;
                 let entry_path = entry.path();
                 
@@ -332,13 +318,13 @@ impl MediaDatabase {
     }
     
     /// Update an image's metadata if the file has changed on disk
-    pub fn refresh_image(&mut self, path: impl AsRef<Path>) -> io::Result<bool> {
+    pub fn refresh_image(&mut self, path: impl AsRef<Path>) -> Result<bool> {
         let path = path.as_ref();
         let path_str = path.to_string_lossy().to_string();
         
         if let Some(existing) = self.images.get(&path_str) {
             // Get current file metadata
-            let metadata = fs::metadata(path)?;
+            let metadata = std::fs::metadata(path)?;
             let modified = metadata.modified()?
                 .duration_since(UNIX_EPOCH)
                 .map(|d| d.as_secs())
