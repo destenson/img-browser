@@ -94,9 +94,8 @@ pub fn run_window_loop(mut window: Window, app: &mut App) -> windows::core::Resu
             TranslateMessage(&message);
             DispatchMessageA(&message);
         }
-
-        Ok(())
     }
+    Ok(())
 }
 
 unsafe extern "system" fn window_proc(
@@ -286,9 +285,10 @@ fn handle_open_file(hwnd: HWND) {
                                 (width, height)
                             );
                             
+                            // TODO: fix the string conversion (sometimes the window title is corrupt especially at the end)
                             // Update window title with the selected file
-                            let title = format!("Image Browser - {}", path.file_name().unwrap_or_default().to_string_lossy());
-                            SetWindowTextA(hwnd, PCSTR(title.as_ptr()));
+                            let title = format!("Image Browser - {}", path.file_name().unwrap().to_str().unwrap());
+                            SetWindowTextA(hwnd, PCSTR::from_raw(title.as_bytes().as_ptr()));
                             
                             // Load the image into the window
                             let window_ptr = GetWindowLongPtrA(hwnd, GWLP_USERDATA) as *mut Window;
@@ -345,9 +345,10 @@ fn handle_open_folder(hwnd: HWND) {
                 if let Some(app) = get_app_from_window(hwnd) {
                     match app.state.set_current_directory(&path) {
                         Ok(_) => {
+                            // TODO: fix the string conversion (sometimes the window title is corrupt especially at the end)
                             // Update window title with the selected folder
-                            let title = format!("Image Browser - {}", path.file_name().unwrap_or_default().to_string_lossy());
-                            SetWindowTextA(hwnd, PCSTR(title.as_ptr()));
+                            let title = format!("Image Browser - {}", path.file_name().unwrap().to_str().unwrap());
+                            SetWindowTextA(hwnd, PCSTR::from_raw(title.as_bytes().as_ptr()));
                             
                             // If the app is configured for recursive scanning
                             if app.config.recursive {

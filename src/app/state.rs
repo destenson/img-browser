@@ -4,6 +4,8 @@ use std::collections::HashSet;
 use super::db::MediaDatabase;
 use super::fs::{DirectoryInfo, list_directory, ListOptions};
 
+use crate::{Result, Error};
+
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct State {
     window_pos: (i32, i32),
@@ -175,7 +177,7 @@ impl State {
         } else {
             None
         };
-        
+
         // Now process the entry info without borrowing self
         if let Some((path, entry_type, is_supported_image)) = entry_info {
             match entry_type {
@@ -189,15 +191,12 @@ impl State {
                         match image::image_dimensions(&path) {
                             Ok((width, height)) => {
                                 self.set_current_image(
-                                    path.to_string_lossy().to_string(), 
+                                    path.to_string_lossy().to_string(),
                                     (width, height)
                                 );
                                 Ok(true)
                             },
-                            Err(e) => Err(std::io::Error::new(
-                                std::io::ErrorKind::Other, 
-                                format!("Failed to load image: {}", e)
-                            )),
+                            Err(e) => Err(Error::ImageError(format!("Failed to get image dimensions: {}", e))),
                         }
                     } else {
                         // Not a supported image file

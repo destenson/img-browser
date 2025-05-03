@@ -4,6 +4,7 @@ pub mod error;
 pub mod fs;
 pub mod settings;
 pub mod state;
+pub mod ui;
 
 // Every app has a state and a configuration.
 pub use config::Config;
@@ -17,6 +18,7 @@ use std::env;
 use std::sync::Once;
 
 // Global platform instance
+#[cfg(target_os = "windows")]
 static mut PLATFORM_INSTANCE: Option<crate::platform::win32::Platform> = None;
 static INIT_PLATFORM: Once = Once::new();
 
@@ -24,6 +26,7 @@ static INIT_PLATFORM: Once = Once::new();
 /// This function initializes the platform instance if it hasn't been initialized yet.
 pub fn get_platform() -> Option<&'static impl crate::platform::Platform> {
     unsafe {
+        #[cfg(target_os = "windows")]
         INIT_PLATFORM.call_once(|| {
             PLATFORM_INSTANCE = Some(crate::platform::win32::Platform {});
         });

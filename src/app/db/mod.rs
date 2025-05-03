@@ -44,16 +44,16 @@ impl MediaDatabase {
         state.current_directory()
             .map(|current_dir| {
                 // Create a directory within the current directory
-                let db_path = current_dir.join(".img-browser");
+                let db_path = current_dir.join("img-browser");
 
                 // Use the platform-specific directory creation
                 if let Some(platform) = super::get_platform() {
                     platform.create_directory(&db_path).inspect_err(|e | {
                         log::error!("Failed to create directory ({}): {}", db_path.display(), e);
-                    })?;
+                    }).expect("Failed to create directory");
                 } else {
                     // Fallback to standard fs functions if platform is not available
-                    std::fs::create_dir_all(&db_path)?;
+                    std::fs::create_dir_all(&db_path).expect("Failed to create directory");
                 }
 
                 db_path
@@ -62,8 +62,8 @@ impl MediaDatabase {
 
                 log::info!("Saving database to {}", db_path.display());
 
-                let db_json = serde_json::to_string_pretty(self)?;
-                std::fs::write(&db_path, db_json)?;
+                let db_json = serde_json::to_string_pretty(self).expect("Failed to serialize database");
+                std::fs::write(&db_path, db_json).expect("Failed to write database");
             }).ok_or(crate::Error::StateError("No current directory set".to_string()))
     }
     

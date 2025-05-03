@@ -57,7 +57,7 @@ storage-pickers-provider = ["windows/Storage_Pickers_Provider"]
 shell = ["windows/Win32_UI_Shell_Common"]
 
 [dependencies]
-chrono = { version = "0.4.40", default-features = false, features = ["std"]}
+chrono = { version = "0.4.41", default-features = false, features = ["std"]}
 clap = { version = "4.5.3", features = ["derive"] }
 defer = "0.2.1"
 env_logger = "0.11.8"
@@ -73,7 +73,7 @@ windows-core = "0.61.0"
 # emulsion = { path = "vendor/emulsion" }
 
 [dependencies.windows]
-version = "0.61"
+version = "0.61.1"
 # path = "../Microsoft--windows-rs/crates/libs/windows"
 features = [
     # the following are helpful for popping up a window or message box

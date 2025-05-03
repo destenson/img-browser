@@ -105,9 +105,9 @@ impl super::Platform for Platform {
     fn run(&self, mut app: crate::App) -> super::Result<()> {
         let crate::App { ref config, ref mut state } = app;
 
-        log::info!("Running on Windows");
-        log::info!("Config: {}", config);
-        log::info!("State: {}", state);
+        log::trace!("Running on Windows");
+        log::trace!("{}", config);
+        log::trace!("{}", state);
         
         // Enable DPI awareness
         unsafe {
@@ -146,7 +146,7 @@ impl super::Platform for Platform {
         }
         
         // Run the message loop, which will properly create and show the window
-        log::info!("Running message loop");
+        log::debug!("Running message loop");
         self.message_loop(window, &mut app)
     }
     

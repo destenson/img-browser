@@ -1,2 +1,6 @@
 **/target/
 **/vendor/
+.idea/
+**/*.mp4
+**/*.txt
+

@@ -100,17 +100,15 @@ pub fn open_file_dialog(
         }
         
         // Show the dialog
-        let result = dialog.Show(Some(hwnd));
-        
-        if let Err(error) = &result {
-            // User cancelled the dialog
-            if error.code() == HRESULT(SDIAG_E_CANCELLED) {
-                return Ok(None);
+        dialog.Show(Some(hwnd)).map_err(|e| {
+            if e.code() == HRESULT(SDIAG_E_CANCELLED) {
+                // User cancelled the dialog
+                return Ok(None::<PathBuf>);
             }
             // Some other error occurred
-            return Err(error.clone());
-        }
-        
+            Err(e)
+        }).expect("Failed to show dialog");
+
         // Get the selected item
         let item = dialog.GetResult()?;
         
