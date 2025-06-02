@@ -1,6 +1,8 @@
 
 //! Platform-independent UI widgets for media management.
 
+use std::time::Instant;
+
 /// Trait for a generic UI widget.
 pub trait Widget {
     /// Render the widget (platform-specific implementation).
@@ -9,12 +11,14 @@ pub trait Widget {
     fn handle_event(&mut self, event: &WidgetEvent);
 }
 
+#[derive(Debug, Clone)]
 /// Basic event type for widgets.
 pub enum WidgetEvent {
-    // ...expand as needed...
-    Click,
-    Hover,
-    KeyPress(char),
+    Click { x: i32, y: i32, t: Instant },
+    DoubleClick { x: i32, y: i32, ms: u64 },
+    Drag { start_x: i32, start_y: i32, end_x: i32, end_y: i32 },
+    Hover { x: i32, y: i32 },
+    KeyPress(char, Instant),
     // etc.
 }
 
@@ -27,9 +31,11 @@ pub struct ImageView {
 impl Widget for ImageView {
     fn render(&mut self) {
         // Platform-specific rendering handled elsewhere.
+        todo!();
     }
     fn handle_event(&mut self, _event: &WidgetEvent) {
         // Handle image-specific events.
+        println!("Handling event for ImageView: {:?}", _event);
     }
 }
 
@@ -40,8 +46,12 @@ pub struct VideoView {
 }
 
 impl Widget for VideoView {
-    fn render(&mut self) {}
-    fn handle_event(&mut self, _event: &WidgetEvent) {}
+    fn render(&mut self) {
+        todo!();
+    }
+    fn handle_event(&mut self, _event: &WidgetEvent) {
+        todo!();
+    }
 }
 
 /// Widget for categorizing and tagging media.
@@ -51,8 +61,12 @@ pub struct TaggingWidget {
 }
 
 impl Widget for TaggingWidget {
-    fn render(&mut self) {}
-    fn handle_event(&mut self, _event: &WidgetEvent) {}
+    fn render(&mut self) {
+        todo!();
+    }
+    fn handle_event(&mut self, _event: &WidgetEvent) {
+        todo!();
+    }
 }
 
 /// Widget for navigating projects or directories.
@@ -63,8 +77,12 @@ pub struct NavigatorWidget {
 }
 
 impl Widget for NavigatorWidget {
-    fn render(&mut self) {}
-    fn handle_event(&mut self, _event: &WidgetEvent) {}
+    fn render(&mut self) {
+        todo!();
+    }
+    fn handle_event(&mut self, _event: &WidgetEvent) {
+        todo!();
+    }
 }
 
 /// Widget for sorting and filtering media.
@@ -82,8 +100,12 @@ pub enum SortBy {
 }
 
 impl Widget for SortFilterWidget {
-    fn render(&mut self) {}
-    fn handle_event(&mut self, _event: &WidgetEvent) {}
+    fn render(&mut self) {
+        todo!();
+    }
+    fn handle_event(&mut self, _event: &WidgetEvent) {
+        todo!();
+    }
 }
 
 // ...add more widgets as needed...

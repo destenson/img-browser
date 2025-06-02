@@ -8,8 +8,8 @@ use crate::{Result, Error};
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct State {
-    window_pos: (i32, i32),
-    window_size: (u32, u32),
+    pub window_pos: (i32, i32),
+    pub window_size: (u32, u32),
     state_machine: StateMachine,
     current_image: Option<ImageInfo>,
     // File navigation state
@@ -22,6 +22,8 @@ pub struct State {
     media_db: Option<MediaDatabase>,
     // Persistent settings
     last_directories: Vec<PathBuf>,
+    // History of images loaded in this session
+    last_images: Vec<ImageInfo>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -60,14 +62,16 @@ impl State {
             view_mode: ViewMode::default(),
             media_db: Some(MediaDatabase::new()),
             last_directories: Vec::new(),
+            last_images: Vec::new(),
         }
     }
     
-    pub fn set_current_image(&mut self, path: String, dimensions: (u32, u32)) {
+    pub fn set_current_image<P: AsRef<Path>>(&mut self, path: P, (width, height): (u32, u32)) {
+        let path = path.as_ref().display().to_string();
         // Create the image info first
         let image_info = ImageInfo { 
             path: path.clone(), 
-            dimensions 
+            dimensions: (width, height)
         };
         
         // Set the current image
@@ -82,8 +86,29 @@ impl State {
         }
     }
     
+    fn add_to_last_images(&mut self, image_info: ImageInfo) {
+        // Add to last images, avoiding duplicates
+        self.last_images.retain(|i| i.path != image_info.path);
+        self.last_images.push(image_info);
+        
+        // Keep only the last 20 images
+        if self.last_images.len() > 20 {
+            self.last_images.remove(0);
+        }
+    }
+    
     pub fn get_current_image(&self) -> Option<&ImageInfo> {
         self.current_image.as_ref()
+    }
+    
+    pub fn set_previous_image(&mut self) {
+        // If we have a last image, set it as the current image
+        if let Some(last_image) = self.last_images.last().cloned() {
+            self.set_current_image(&last_image.path, last_image.dimensions);
+        } else {
+            // No previous image available
+            self.current_image = None;
+        }
     }
     
     /// Get a reference to the current directory path, if any
@@ -113,6 +138,7 @@ impl State {
             }
         }
         
+        println!("Current directory set to: {}", path.display());
         Ok(())
     }
     

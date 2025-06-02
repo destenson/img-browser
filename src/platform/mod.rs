@@ -19,8 +19,14 @@ pub trait Platform {
     /// Get a path to a special folder (like Pictures, Documents, etc.)
     fn get_special_folder(&self, folder_type: SpecialFolder) -> Option<std::path::PathBuf>;
     /// Create a directory and all parent directories if needed
-    fn create_directory(&self, path: &std::path::Path) -> Result<()>;
+    fn create_directory(&self, path: &std::path::Path) -> Result<()> {
+        std::fs::create_dir(path).map_err(Into::into)
+    }
     // fn load_image_as_bitmap(&self, path: &str) -> Result<(Bitmap, i32, i32)>;
+    
+    fn directory_exists(&self, path: &std::path::Path) -> bool {
+        std::fs::metadata(path).map(|m| m.is_dir()).unwrap_or(false)
+    }
 }
 
 /// Types of special folders that can be accessed through the platform layer

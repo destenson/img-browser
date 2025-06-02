@@ -124,6 +124,14 @@ impl App {
     }
 }
 
+impl App {
+    pub fn load_image_from_path<P: AsRef<Path>>(&mut self, path: P, (width, height): (u32, u32)) -> Result<()> {
+        self.state.set_current_image(path, (width, height));
+
+        Ok(())
+    }
+}
+
 /*
 TODO:
 

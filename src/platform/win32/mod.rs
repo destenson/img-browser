@@ -3,7 +3,10 @@
 mod main;
 mod dialogs;
 mod fs;
+mod bmp;
 
+use std::path::{Path, PathBuf};
+use image::imageops::FilterType;
 pub use dialogs::{open_file_dialog, open_folder_dialog};
 pub use main::run_window_loop;
 pub use fs::get_known_folder_path;
@@ -13,6 +16,8 @@ use windows::Win32::{
     Graphics::Gdi::{HBITMAP, HDC, DeleteObject, DeleteDC, ReleaseDC, CreateCompatibleDC, CreateCompatibleBitmap, BeginPaint, BitBlt, EndPaint, GetDC, SelectObject, SetDIBitsToDevice, UpdateWindow, BITMAPINFO, BITMAPINFOHEADER, BI_RGB, DIB_RGB_COLORS, HBRUSH, HGDIOBJ, PAINTSTRUCT, RGBQUAD, SRCCOPY},
     UI::HiDpi::{SetProcessDpiAwareness, PROCESS_PER_MONITOR_DPI_AWARE},
 };
+use windows::Win32::UI::HiDpi::GetDpiForWindow;
+use crate::platform::win32::bmp::{load_image_as_bitmap, load_image_as_bitmap_unscaled};
 
 /// Encapsulates a window.
 pub struct Window {
@@ -28,6 +33,8 @@ pub struct Window {
     pub width: i32,
     /// The height of the window.
     pub height: i32,
+    /// The path to the image, if any.
+    pub img_path: Option<PathBuf>,
 }
 
 impl Drop for Window {
@@ -52,8 +59,8 @@ impl Window {
         Ok(())
     }
     
-    pub fn load_image(&mut self, path: &str) -> windows::core::Result<()> {
-        let (bitmap, width, height) = load_image_as_bitmap(path);
+    pub fn load_image_unscaled<P: AsRef<Path>>(&mut self, path: P) -> windows::core::Result<()> {
+        let (bitmap, width, height) = load_image_as_bitmap_unscaled(path);
         
         // Clean up old bitmap if it exists
         if !self.hbitmap.is_invalid() {
@@ -64,6 +71,23 @@ impl Window {
         self.hbitmap = unsafe { HBITMAP(bitmap.0) };
         self.width = width;
         self.height = height;
+        
+        Ok(())
+    }
+    
+    pub fn load_image<P: AsRef<Path>>(&mut self, path: P) -> windows::core::Result<()> {
+        let (bitmap, width, height) = load_image_as_bitmap(self.hwnd, &path);
+        
+        // Clean up old bitmap if it exists
+        if !self.hbitmap.is_invalid() {
+            unsafe { DeleteObject(self.hbitmap.into()) };
+        }
+        
+        // Convert HGDIOBJ to HBITMAP
+        self.hbitmap = unsafe { HBITMAP(bitmap.0) };
+        self.width = width;
+        self.height = height;
+        self.img_path = Some(path.as_ref().to_path_buf());
         
         Ok(())
     }
@@ -84,6 +108,13 @@ impl super::Platform for Platform {
         let hdc = unsafe { GetDC(None) };
         let hdc_mem = unsafe { CreateCompatibleDC(Some(hdc)) };
         let hbitmap = unsafe { CreateCompatibleBitmap(hdc, width, height) };
+        if hdc.is_invalid() || hdc_mem.is_invalid() || hbitmap.is_invalid() {
+            let error = unsafe { GetLastError() };
+            return Err(crate::Error::PlatformError(format!(
+                "Failed to create window resources: {:?}",
+                error
+            )));
+        }
         
         // Create a window struct without initializing the hwnd
         // The actual window will be created in the message loop
@@ -94,6 +125,7 @@ impl super::Platform for Platform {
             hbitmap,
             width,
             height,
+            img_path: None,
         })
     }
     
@@ -162,94 +194,10 @@ impl super::Platform for Platform {
                 format!("Failed to create directory: {}", e)
             ).into())
     }
-}
-
-/// Loads an image from a file path and returns it as a bitmap handle
-fn load_image_as_bitmap(img_path: &str) -> (HGDIOBJ, i32, i32) {
-    use image::GenericImageView;
-    // Load the image using the `image` crate
-    let img = image::open(img_path).expect("Failed to load image");
-    let (width, height) = img.dimensions();
-    log::info!("Loaded image dimensions: {} x {}", width, height);
-    let mut img = img.to_rgba8();
-
-    // Convert from RGBA to BGRA by swapping R and B channels
-    for pixel in img.pixels_mut() {
-        let r = pixel[0];
-        let b = pixel[2];
-        pixel[0] = b;
-        pixel[2] = r;
-    }
     
-    // Create a device context for the entire screen
-    let hdc_screen = unsafe { GetDC(None) }; // Get the screen's device context
-    let hdc = unsafe { CreateCompatibleDC(Some(hdc_screen)) };
-
-    // Create a compatible bitmap
-    let hbitmap = unsafe {
-        CreateCompatibleBitmap(
-            hdc_screen,
-            width as i32,
-            height as i32,
-        )
-    };
-
-    if hbitmap.is_invalid() {
-        panic!("Failed to create compatible bitmap.");
+    fn directory_exists(&self, path: &std::path::Path) -> bool {
+        // Check if the directory exists using Windows API
+        fs::directory_exists_windows(path)
     }
-
-    // Set the bitmap bits
-    let bmp_info_header = BITMAPINFOHEADER {
-        biSize: std::mem::size_of::<BITMAPINFOHEADER>() as u32,
-        biWidth: width as i32,
-        biHeight: -(height as i32), // Negative for top-down bitmap
-        biPlanes: 1,
-        biBitCount: 32,
-        biCompression: BI_RGB.0, // Use BI_RGB for uncompressed RGB
-        ..Default::default()
-    };
-
-    let prev_bmp = unsafe { SelectObject(hdc, hbitmap.into()) };
-
-    let mut bmp_info = BITMAPINFO {
-        bmiHeader: bmp_info_header,
-        bmiColors: [RGBQUAD {
-            rgbRed: 0,
-            rgbGreen: 0,
-            rgbBlue: 0,
-            rgbReserved: 0,
-        }; 1],
-    };
-
-    unsafe {
-        let res = SetDIBitsToDevice(
-            hdc,
-            0,
-            0,
-            width,
-            height,
-            0,
-            0,
-            0,
-            height,
-            img.as_raw().as_ptr() as *const _,
-            &mut bmp_info,
-            DIB_RGB_COLORS,
-        );
-
-        if res == 0 {
-            log::error!("Failed to set DIB bits: {}", GetLastError().0);
-        }
-    }
-
-    // Restore the device context
-    unsafe { SelectObject(hdc, prev_bmp) };
-
-    unsafe {
-        let _ = DeleteDC(hdc);
-        ReleaseDC(None, hdc_screen);
-    }
-
-    // Return the bitmap handle
-    (hbitmap.into(), width as i32, height as i32)
 }
+

@@ -1,13 +1,15 @@
 #![allow(non_snake_case, unused)]
 use std::{borrow::Borrow, ffi::c_void, io::Read, mem::ManuallyDrop, ops::BitAnd, sync::{Arc, Mutex}};
-
+use std::path::PathBuf;
+use std::str::FromStr;
+use gst::TaskHandle;
 use windows::{
     core::*, Win32::{
         Foundation::*, Graphics::Gdi::*, System::{LibraryLoader::*, Threading::*},
         UI::{Controls::*, HiDpi::*, Input::KeyboardAndMouse::{GetKeyState, VK_CONTROL}, WindowsAndMessaging::*}
     },
 };
-
+use windows::Win32::UI::Shell::{DragAcceptFiles, DragFinish, DragQueryFileA, HDROP};
 use crate::platform::win32::Window;
 use crate::App;
 
@@ -82,6 +84,9 @@ pub fn run_window_loop(mut window: Window, app: &mut App) -> windows::core::Resu
         // Store the App pointer as a property of the window
         SetPropA(hwnd, s!("AppPtr"), Some(hdata));
         
+        // enable drag-and-drop file support
+        DragAcceptFiles(hwnd, true);
+        
         log::info!("Window created successfully with handle: {:?}", window.hwnd.0);
 
         // Show window
@@ -105,7 +110,8 @@ unsafe extern "system" fn window_proc(
     lparam: LPARAM,
 ) -> LRESULT {
     // Get the window pointer from window's user data
-    let window_ptr = GetWindowLongPtrA(hwnd, GWLP_USERDATA) as *const Window;
+    // let window_ptr = GetWindowLongPtrA(hwnd, GWLP_USERDATA) as *const Window;
+    let mut window_ptr = GetWindowLongPtrA(hwnd, GWLP_USERDATA) as *mut Window;
     
     match message {
         WM_CREATE => {
@@ -177,6 +183,82 @@ unsafe extern "system" fn window_proc(
             LRESULT(0)
         },
         
+        WM_DROPFILES => {
+            log::debug!("Files dropped onto window: {:?}", wparam);
+            // Handle file drops
+            let hdrop = HDROP(wparam.0 as *mut c_void);
+            let mut file_count = 0;
+            unsafe {
+                file_count = DragQueryFileA(hdrop, 0xFFFFFFFF, None);
+                if file_count > 0 {
+                    for i in 0..file_count {
+                        let mut file_name = vec![0u8; MAX_PATH as usize];
+                        let len = DragQueryFileA(hdrop, i, Some(&mut file_name));
+                        if len > 0 {
+                            file_name.truncate(len as usize);
+                            let path = String::from_utf8_lossy(&file_name).to_string();
+                            log::info!("Dropped file: {}", path);
+
+                            match load_image_from_path(&path, hwnd) {
+                                Ok(filename) => {
+                                    log::info!("Image loaded successfully: {}", path);
+                                    let title = format!("Image Browser - {}", filename);
+                                    SetWindowTextA(hwnd, PCSTR::from_raw(title.as_bytes().as_ptr()));
+
+                                    // Load the image into the window
+                                    let window_ptr = GetWindowLongPtrA(hwnd, GWLP_USERDATA) as *mut Window;
+                                    if !window_ptr.is_null() {
+                                        let window = &mut *window_ptr;
+                                        let _ = window.load_image(&path);
+
+                                        // Force a repaint
+                                        InvalidateRect(Some(hwnd), None, false);
+                                        UpdateWindow(hwnd);
+                                    } else {
+                                        log::error!("Failed to get window pointer from user data");
+                                    }
+
+                                },
+                                Err(e) => {
+                                    log::error!("Failed to load image: {}", e);
+
+                                    // Show error message
+                                    unsafe {
+                                        let error_msg = format!("Failed to load image: {}", e);
+                                        MessageBoxA(Some(hwnd), PCSTR(error_msg.as_ptr()), s!("Error"), MB_ICONERROR | MB_OK);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                DragFinish(hdrop);
+            }
+            LRESULT(0)
+        }
+        
+        WM_SIZE => {
+            // Update the window size in our Window struct
+            if !window_ptr.is_null() {
+                let window = unsafe { &mut *window_ptr };
+                log::warn!("WM_SIZE (was {} x {})", window.width, window.height);
+
+                // Handle window resizing
+                let width = (lparam.0 & 0xffff) as u32 as i32;
+                let height = (((lparam.0 >> 16) & 0xffff) as u32) as i32;
+                log::info!("Window resized to {}x{}", width, height);
+            
+                window.width = width;
+                window.height = height;
+                
+                // Force a repaint
+                InvalidateRect(Some(hwnd), None, false);
+                UpdateWindow(hwnd);
+            }
+            
+            LRESULT(0)
+        }
+        
         WM_CLOSE => {
             // Close the window
             DestroyWindow(hwnd).expect("Failed to destroy window");
@@ -193,6 +275,50 @@ unsafe extern "system" fn window_proc(
     }
 }
 
+
+#[derive(Debug)]
+enum LoadImageError {
+    AppNotFoundError,
+    ImageLoadError(image::ImageError),
+    ApplicationError(crate::app::Error),
+    InfallibleError,
+}
+impl std::fmt::Display for LoadImageError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            LoadImageError::AppNotFoundError => write!(f, "Application not found for window"),
+            LoadImageError::ImageLoadError(e) => write!(f, "Image load error: {}", e),
+            LoadImageError::ApplicationError(e) => write!(f, "Application error: {}", e),
+            LoadImageError::InfallibleError => write!(f, "Infallible error occurred"),
+        }
+    }
+}
+impl From<core::convert::Infallible> for LoadImageError {
+    fn from(_: core::convert::Infallible) -> Self {
+        LoadImageError::InfallibleError
+    }
+}
+
+fn load_image_from_path<P: AsRef<std::path::Path>>(path: P, hwnd: HWND) -> std::result::Result<String, LoadImageError> {
+    // Try to get image dimensions
+    let (width, height) = image::image_dimensions(&path).map_err(LoadImageError::ImageLoadError)?;
+    // Update the app state with the selected image
+    unsafe {
+        if let Some(app) = get_app_from_window(hwnd) {
+            app.load_image_from_path(&path, (width, height)).map_err(LoadImageError::ApplicationError)?;
+ 
+            // Update window title with the selected file
+            let pb = path.as_ref().to_path_buf();
+            let filename = pb.file_name().unwrap_or_default();
+            let paths = filename.as_encoded_bytes().utf8_chunks().collect::<Vec<_>>();
+            // log::trace!("path chunks: {:?}", paths);
+            Ok(paths[0].valid().to_string())
+        } else {
+            Err(LoadImageError::AppNotFoundError)
+        }
+    }
+}
+
 // Debug options for controlling logging
 struct DebugOpts {
     show_wm_paint: bool,
@@ -200,13 +326,13 @@ struct DebugOpts {
 
 // Global debug options
 static DBG_OPTS: DebugOpts = DebugOpts {
-    show_wm_paint: false,
+    show_wm_paint: cfg!(debug_assertions),
 };
 
 /// Handle WM_PAINT messages
 pub fn wm_paint(hwnd: HWND, window: Option<&Window>) {
     if DBG_OPTS.show_wm_paint {
-        log::trace!("wm_paint: hWND: 0x{:08p}", hwnd.0);
+        log::trace!("wm_paint: hWND: {:08p}", hwnd.0);
     }
     
     let mut ps: PAINTSTRUCT = unsafe { std::mem::zeroed() };
@@ -237,7 +363,7 @@ pub fn wm_paint(hwnd: HWND, window: Option<&Window>) {
 }
 
 /// Helper function to get the app from window's user data
-unsafe fn get_app_from_window(hwnd: HWND) -> Option<&'static mut App> {
+pub(crate) unsafe fn get_app_from_window(hwnd: HWND) -> Option<&'static mut App> {
     let app_ptr = GetWindowLongPtrA(hwnd, GWLP_USERDATA) as *mut c_void;
     if app_ptr.is_null() {
         return None;
@@ -273,39 +399,32 @@ fn handle_open_file(hwnd: HWND) {
     match result {
         Ok(Some(path)) => {
             log::info!("Selected file: {}", path.display());
-            
-            // Try to get image dimensions
-            match image::image_dimensions(&path) {
-                Ok((width, height)) => {
-                    // Update the app state with the selected image
-                    unsafe {
-                        if let Some(app) = get_app_from_window(hwnd) {
-                            app.state.set_current_image(
-                                path.to_string_lossy().to_string(), 
-                                (width, height)
-                            );
-                            
-                            // TODO: fix the string conversion (sometimes the window title is corrupt especially at the end)
-                            // Update window title with the selected file
-                            let title = format!("Image Browser - {}", path.file_name().unwrap().to_str().unwrap());
-                            SetWindowTextA(hwnd, PCSTR::from_raw(title.as_bytes().as_ptr()));
-                            
-                            // Load the image into the window
-                            let window_ptr = GetWindowLongPtrA(hwnd, GWLP_USERDATA) as *mut Window;
-                            if !window_ptr.is_null() {
-                                let window = &mut *window_ptr;
-                                let _ = window.load_image(&path.to_string_lossy());
-                                
-                                // Force a repaint
-                                InvalidateRect(Some(hwnd), None, false);
-                                UpdateWindow(hwnd);
-                            }
+
+            match load_image_from_path(&path, hwnd) {
+                Ok(filename) => {
+                    log::info!("Image loaded successfully: {}", path.display());
+                    let title = format!("Image Browser - {}", filename);
+                    unsafe { SetWindowTextA(hwnd, PCSTR::from_raw(title.as_bytes().as_ptr())) };
+
+                    // Load the image into the window
+                    let window_ptr = unsafe { GetWindowLongPtrA(hwnd, GWLP_USERDATA) as *mut Window };
+                    if !window_ptr.is_null() {
+                        let window = unsafe { &mut *window_ptr };
+                        let _ = window.load_image(path);
+
+                        // Force a repaint
+                        unsafe {
+                            InvalidateRect(Some(hwnd), None, false);
+                            UpdateWindow(hwnd);
                         }
+                    } else {
+                        log::error!("Failed to get window pointer from user data");
                     }
+
                 },
                 Err(e) => {
                     log::error!("Failed to load image: {}", e);
-                    
+
                     // Show error message
                     unsafe {
                         let error_msg = format!("Failed to load image: {}", e);
@@ -313,6 +432,7 @@ fn handle_open_file(hwnd: HWND) {
                     }
                 }
             }
+
         },
         Ok(None) => {
             log::info!("File dialog cancelled");
@@ -347,7 +467,11 @@ fn handle_open_folder(hwnd: HWND) {
                         Ok(_) => {
                             // TODO: fix the string conversion (sometimes the window title is corrupt especially at the end)
                             // Update window title with the selected folder
-                            let title = format!("Image Browser - {}", path.file_name().unwrap().to_str().unwrap());
+                            let filename = path.file_name().unwrap_or_default();
+                            let paths = filename.as_encoded_bytes().utf8_chunks().collect::<Vec<_>>();
+                            println!("path chunks: {:?}", paths);
+                            let title = format!("Image Browser - {}", paths[0].valid());
+                            // let title = format!("Image Browser - {}", path.file_name().unwrap().to_str().unwrap());
                             SetWindowTextA(hwnd, PCSTR::from_raw(title.as_bytes().as_ptr()));
                             
                             // If the app is configured for recursive scanning

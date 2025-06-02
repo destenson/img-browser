@@ -104,6 +104,25 @@ pub fn create_directory_windows(path: &std::path::Path) -> windows::core::Result
     Ok(())
 }
 
+pub fn directory_exists_windows(path: &std::path::Path) -> bool {
+    // Convert the path to a UTF-16 encoded string that Windows APIs expect
+    let wide_path = path.to_string_lossy().encode_utf16().collect::<Vec<u16>>();
+    
+    // Terminate with a null character
+    let mut wide_path_null = wide_path.clone();
+    wide_path_null.push(0);
+    
+    // Check if the directory exists
+    unsafe {
+        let attrs = GetFileAttributesW(windows::core::PCWSTR::from_raw(wide_path_null.as_ptr()));
+        if attrs != u32::MAX && attrs & (FILE_ATTRIBUTE_DIRECTORY.0 as u32) != 0 {
+            return true; // Directory exists
+        }
+    }
+    
+    false // Directory does not exist
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

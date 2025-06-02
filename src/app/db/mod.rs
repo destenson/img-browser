@@ -48,9 +48,14 @@ impl MediaDatabase {
 
                 // Use the platform-specific directory creation
                 if let Some(platform) = super::get_platform() {
-                    platform.create_directory(&db_path).inspect_err(|e | {
-                        log::error!("Failed to create directory ({}): {}", db_path.display(), e);
-                    }).expect("Failed to create directory");
+                    if platform.directory_exists(&db_path) {
+                        log::info!("Database directory already exists: {}", db_path.display());
+                    } else {
+                        log::info!("Creating database directory: {}", db_path.display());
+                        platform.create_directory(&db_path).inspect_err(|e | {
+                            log::error!("Failed to create directory ({}): {}", db_path.display(), e);
+                        }).expect("Failed to create directory");
+                    }
                 } else {
                     // Fallback to standard fs functions if platform is not available
                     std::fs::create_dir_all(&db_path).expect("Failed to create directory");
